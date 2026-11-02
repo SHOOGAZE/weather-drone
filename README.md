@@ -3,7 +3,7 @@
 **Weather becomes sound.** A generative ambient drone driven by the live weather where you are.
 Wind, rain, pressure, humidity, temperature and the position of the sun shape both the music and the sky on screen.
 
-**▶ Listen:** [https://shoogaze.github.io/weather-drone/](https://shoogaze.github.io/weather-drone/)
+**▶ Listen:** [https://SHOOGAZE.github.io/weather-drone/](https://SHOOGAZE.github.io/weather-drone/)
 
 ![Weather Drone at dusk](preview.png)
 
