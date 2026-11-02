@@ -5,7 +5,7 @@ Wind, rain, pressure, humidity, temperature and the position of the sun shape bo
 
 **▶ Listen:** [https://SHOOGAZE.github.io/weather-drone/](https://SHOOGAZE.github.io/weather-drone/)
 
-![Weather Drone at dusk](preview.png)
+![Weather Drone at dusk](prev.png)
 
 One HTML file. No sign-up, no API keys, no tracking, no build step.
 
