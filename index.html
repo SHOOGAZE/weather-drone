@@ -1,0 +1,2034 @@
+<!doctype html>
+<html lang="en" class="no-tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Weather Drone · Atmosphere OS</title>
+<meta name="description" content="A generative ambient drone driven by the live weather where you are. Wind, rain, pressure and the sun shape the sound and the sky.">
+<meta name="author" content="Kirill Kinderhart">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Weather Drone">
+<meta property="og:title" content="Weather Drone — weather becomes sound">
+<meta property="og:description" content="A generative ambient drone driven by the live weather where you are. Wind, rain, pressure and the sun shape the sound and the sky. One HTML file, no sign-up.">
+<!-- link previews need an absolute URL: replace with https://YOUR-NAME.github.io/REPO/preview.png after publishing -->
+<meta property="og:image" content="preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Weather Drone at dusk: a wine-coloured sky, wind waves and a minimal control bar">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0f1315">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Weather Drone">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1315'/%3E%3Cpath d='M6 32 C16 18 26 18 32 32 S48 46 58 32' fill='none' stroke='%237fd0ff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: phones = one flowing column; wider screens = a stage (sky + waves) with the city in a corner, a small dock, and a settings drawer.
+   Colour follows the sun: blue-graphite night, plum dawn / wine dusk, warm cream by day (greyer when overcast).
+   One accent marks live things only and changes with the sky and the weather. */
+@property --accent { syntax: '<color>'; inherits: true; initial-value: #8f9bff; }
+@property --bg { syntax: '<color>'; inherits: true; initial-value: #0f1315; }
+@property --panel { syntax: '<color>'; inherits: true; initial-value: #161b1e; }
+@property --line { syntax: '<color>'; inherits: true; initial-value: #252e33; }
+@property --fg { syntax: '<color>'; inherits: true; initial-value: #e4eaec; }
+@property --dim { syntax: '<color>'; inherits: true; initial-value: #7d8d94; }
+@property --sky1 { syntax: '<color>'; inherits: true; initial-value: #070b14; }
+@property --sky2 { syntax: '<color>'; inherits: true; initial-value: #0c1118; }
+@property --sky3 { syntax: '<color>'; inherits: true; initial-value: #11181d; }
+@property --glow { syntax: '<color>'; inherits: true; initial-value: #3b4c80; }
+@property --sunX { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
+@property --sunY { syntax: '<percentage>'; inherits: true; initial-value: 30%; }
+@property --stars { syntax: '<number>'; inherits: true; initial-value: 1; }
+:root {
+  color-scheme: dark;
+  --bg: #0f1315;
+  --panel: #161b1e;
+  --line: #252e33;
+  --fg: #e4eaec;
+  --dim: #7d8d94;
+  --accent: #7fd0ff;
+  transition: --accent 2.5s ease, --bg 2.5s ease, --panel 2.5s ease, --line 2.5s ease, --fg 2.5s ease, --dim 2.5s ease,
+    --sky1 3s ease, --sky2 3s ease, --sky3 3s ease, --glow 3s ease, --sunX 3s ease, --sunY 3s ease, --stars 3s ease;
+  --sans: 'IBM Plex Sans', 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans', 'Yu Gothic', 'Malgun Gothic', 'Noto Sans CJK SC', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+html.no-tr { transition: none !important; }
+html.anim-off .dot.on { animation: none; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
+html.amb-lock, html.amb-lock body { overflow: hidden; }
+body {
+  margin: 0;
+  min-height: 100vh; min-height: 100dvh;
+  background: transparent;
+  color: var(--fg);
+  font: 400 14px/1.45 var(--sans);
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(40px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* the sky: zenith -> horizon gradient, a sun (or moon) glow that travels along its arc, stars at night */
+body::before, .ambient {
+  background:
+    radial-gradient(70vmax 45vmax at var(--sunX) var(--sunY), color-mix(in srgb, var(--glow) 55%, transparent), transparent 70%),
+    linear-gradient(to bottom, var(--sky1) 0%, var(--sky2) 55%, var(--sky3) 100%);
+}
+body::before { content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+body::after, .ambient::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: var(--stars);
+  background-image:
+    radial-gradient(1px 1px at 23px 41px, #fff, transparent), radial-gradient(1px 1px at 141px 97px, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 191px 23px, #fff, transparent), radial-gradient(1px 1px at 61px 187px, #fff, transparent),
+    radial-gradient(1px 1px at 97px 131px, #dfe6ff, transparent), radial-gradient(1.5px 1.5px at 271px 211px, #fff, transparent),
+    radial-gradient(1px 1px at 311px 61px, #ffeedd, transparent), radial-gradient(1px 1px at 211px 289px, #fff, transparent);
+  background-size: 233px 233px, 317px 317px, 419px 419px, 233px 233px, 317px 317px, 419px 419px, 353px 353px, 271px 271px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 80%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 80%);
+}
+#fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; display: block; }
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.label { font: 500 11px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .09em; color: var(--dim); }
+button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button, select { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.glass { border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 62%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+
+/* ---------- layout ----------
+   Phones: one flowing column. Wider screens: a stage — sky and waves in the middle, the city in the top-left corner,
+   a compact dock in the bottom-right corner, and everything else in a settings drawer. */
+.app { position: relative; z-index: 1; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.top-r { display: flex; align-items: center; gap: 10px; }
+.brand { font: 600 15px/1 var(--sans); letter-spacing: .02em; white-space: nowrap; }
+.brand span { color: var(--dim); font-weight: 500; }
+.brand .os { margin-left: 10px; font: 500 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--line); padding: 4px 6px; vertical-align: 2px; }
+@media (max-width: 400px) { .brand .os { display: none; } }
+.clock { font-size: 12px; color: var(--dim); }
+
+.hero { display: flex; flex-direction: column; gap: 8px; }
+.hero .pl { font: 500 36px/1.02 var(--sans); letter-spacing: -.02em; text-wrap: balance; }
+.hero .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hero .co { font-size: 11px; color: var(--dim); }
+.hero .wind { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.hero .wind .mono { font-size: 13px; }
+.tag { font: 500 10px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; border: 1px solid var(--line); padding: 5px 7px; color: var(--dim); white-space: nowrap; }
+.tag.live { color: var(--accent); border-color: var(--accent); }
+
+.s-wind { height: 200px; border: 0; padding: 0; }
+canvas#wave { display: block; width: 100%; height: 100%; }
+
+/* the dock: the few controls that matter while listening */
+.dock { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.dock-main { display: flex; align-items: center; gap: 14px; }
+.dock-btns { display: flex; gap: 8px; }
+.dock-btns .btn { flex: 1; justify-content: center; }
+.dock-row { display: grid; grid-template-columns: auto minmax(0, 1fr) 44px; align-items: center; gap: 12px; }
+.dock-row .mono { font-size: 12px; text-align: right; }
+.dock-style { display: flex; flex-direction: column; gap: 8px; }
+
+.dial { position: relative; flex: none; width: 72px; height: 72px; border: 0; border-radius: 50%; background: none; padding: 0; touch-action: none; }
+.dial .ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: repeating-conic-gradient(var(--dim) 0 1.2deg, transparent 1.2deg 6deg);
+  -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%);
+  mask: radial-gradient(circle, transparent 62%, #000 63%);
+  opacity: .55; transition: opacity .3s;
+}
+.dial .cap { position: absolute; inset: 11px; border-radius: 50%; background: var(--panel); border: 1px solid var(--dim); transition: border-color .3s; }
+.dial .glyph { position: absolute; left: 50%; top: 50%; width: 13px; height: 15px; background: var(--fg); transform: translate(-35%, -50%); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.dial[aria-pressed="true"] .cap { border-color: var(--accent); }
+.dial[aria-pressed="true"] .ring { opacity: .9; background: repeating-conic-gradient(var(--accent) 0 1.2deg, transparent 1.2deg 6deg); }
+.dial[aria-pressed="true"] .glyph { width: 12px; height: 12px; background: var(--accent); transform: translate(-50%, -50%); clip-path: none; }
+.ctl-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1; }
+.state { display: flex; align-items: center; gap: 8px; font: 500 15px/1 var(--sans); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+.dot.on { background: var(--accent); animation: pulse 3.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.note { font-size: 12px; color: var(--dim); text-wrap: pretty; }
+.note:empty { display: none; }
+
+/* segmented controls: equal columns, text centred */
+.seg { display: inline-flex; align-self: flex-start; border: 1px solid var(--line); }
+.seg button { background: none; border: 0; padding: 9px 12px; min-height: 36px; font: 500 11px/1 var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--dim); text-align: center; transition: color .2s; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.seg button:disabled { cursor: default; opacity: .5; }
+.seg.fill { display: flex; width: 100%; align-self: stretch; }
+.seg.fill button { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
+.dock .seg.fill button { font-size: 10px; letter-spacing: .04em; }
+.btn { display: inline-flex; align-items: center; gap: 7px; background: none; border: 1px solid var(--line); min-height: 36px; padding: 0 12px; font: 500 11px/1 var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--fg); transition: border-color .2s, color .2s; }
+.btn svg { width: 13px; height: 13px; flex: none; }
+.btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.rp { display: flex; align-items: center; gap: 10px; }
+.rp[hidden] { display: none; }
+.rp-bar { flex: 1; min-width: 40px; height: 2px; background: var(--line); position: relative; }
+.rp-bar i { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: var(--accent); }
+.rp .mono { font-size: 11px; color: var(--dim); white-space: nowrap; }
+
+/* ---------- settings drawer ---------- */
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: min(440px, 100%); overflow-y: auto; overscroll-behavior: contain;
+  padding: max(18px, env(safe-area-inset-top, 0px)) max(22px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) 22px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  border-left: 1px solid var(--line);
+  transform: translateX(102%); visibility: hidden; transition: transform .38s cubic-bezier(.2, .7, .2, 1), visibility .38s;
+}
+body.drawer-open .drawer { transform: none; visibility: visible; }
+.scrim { position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, .28); opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s; }
+body.drawer-open .scrim { opacity: 1; visibility: visible; }
+.drawer-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 14px; }
+.drawer-head h2 { margin: 0; font: 600 16px/1 var(--sans); }
+.drawer-head .btn { min-height: 32px; padding: 0 10px; }
+
+section { border-top: 1px solid var(--line); padding-block: 14px; min-width: 0; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.sec-head .mono { font-size: 12px; text-align: right; }
+
+.row { display: grid; grid-template-columns: 112px minmax(0, 1fr) 68px; align-items: center; gap: 10px; min-height: 42px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row .label { overflow-wrap: anywhere; line-height: 1.2; }
+.row .mono { font-size: 12.5px; text-align: right; }
+.row.dn { grid-template-columns: 112px minmax(0, 1fr); }
+.row .seg { align-self: center; }
+.row .seg button { min-height: 32px; padding-block: 6px; }
+
+/* sliders: horizontal drag moves the value, a vertical swipe still scrolls */
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 30px; margin: 0; background: transparent; min-width: 0; touch-action: pan-y; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 2px; background: linear-gradient(to right, var(--fg) var(--p, 0%), var(--line) var(--p, 0%)); }
+input[type=range]::-moz-range-track { height: 2px; background: var(--line); }
+input[type=range]::-moz-range-progress { height: 2px; background: var(--fg); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 22px; margin-top: -10px; background: var(--fg); border: 0; border-radius: 0; }
+input[type=range]::-moz-range-thumb { width: 12px; height: 22px; background: var(--fg); border: 0; border-radius: 0; }
+input[type=range]:disabled { cursor: default; }
+input[type=range]:disabled::-webkit-slider-thumb { width: 2px; background: var(--accent); }
+input[type=range]:disabled::-moz-range-thumb { width: 2px; background: var(--accent); }
+
+.chart { padding-block: 8px 4px; }
+.chart + .chart { border-top: 1px solid var(--line); }
+.chart .sec-head { margin-bottom: 6px; }
+.spark { position: relative; height: 48px; }
+.spark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.spark .ln { fill: none; stroke: var(--fg); stroke-width: 1.25; }
+.spark .area { fill: var(--fg); opacity: .07; }
+.spark .base { stroke: var(--line); stroke-width: 1; }
+.spark .now { stroke: var(--accent); stroke-width: 1; }
+.spark rect { fill: var(--fg); opacity: .55; }
+.spark .pt { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); }
+.axis { position: relative; height: 16px; margin-top: 4px; font-size: 10px; color: var(--dim); }
+.axis span { position: absolute; top: 0; white-space: nowrap; }
+
+.score { display: grid; grid-template-columns: auto minmax(0, 1fr); margin: 0; }
+.score dt, .score dd { display: flex; align-items: center; margin: 0; padding-block: 9px; border-bottom: 1px solid var(--line); }
+.score dt:last-of-type, .score dd:last-child { border-bottom: 0; }
+.score dd { justify-content: flex-end; padding-left: 16px; text-align: right; font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }
+
+.foot { border-top: 1px solid var(--line); padding-top: 14px; font-size: 11px; color: var(--dim); text-wrap: pretty; }
+.foot p { margin: 0 0 8px; }
+.foot p:last-child { margin: 0; }
+.foot-lang select { -webkit-appearance: none; appearance: none; background: none; border: 0; padding: 0 14px 0 0; margin: 0; font: inherit; color: var(--dim); cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 5px center, right 1px center; background-size: 4px 4px; background-repeat: no-repeat; }
+.foot-lang select:hover { color: var(--fg); }
+kbd { font: 500 10px/1 var(--mono); color: var(--fg); border: 1px solid var(--line); border-bottom-width: 2px; padding: 3px 5px; border-radius: 3px; }
+.kbd-hint { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .kbd-hint { display: block; }
+  .seg button:not(:disabled):not([aria-pressed="true"]):hover { color: var(--fg); }
+  .btn:hover { border-color: var(--dim); }
+  .dial:hover .cap { border-color: var(--fg); }
+  .dial[aria-pressed="true"]:hover .cap { border-color: var(--accent); }
+}
+
+/* ---------- stage: wider screens ---------- */
+@media (min-width: 720px) and (min-height: 560px) {
+  body { padding: 0; overflow: hidden; }
+  .app { max-width: none; margin: 0; display: block; }
+  .top { position: fixed; z-index: 3; top: 0; left: 0; right: 0;
+    padding: max(22px, env(safe-area-inset-top, 0px)) max(28px, env(safe-area-inset-right, 0px)) 0 max(28px, env(safe-area-inset-left, 0px)); }
+  .hero { position: fixed; z-index: 2; top: 76px; left: max(28px, env(safe-area-inset-left, 0px)); max-width: 46vw; }
+  .hero .pl { font-size: clamp(40px, 4.4vw, 66px); }
+  .s-wind { position: fixed; z-index: 1; left: 0; right: 0; top: 47%; transform: translateY(-50%); height: clamp(200px, 34vh, 400px);
+    padding: 0 max(28px, env(safe-area-inset-right, 0px)) 0 max(28px, env(safe-area-inset-left, 0px)); }
+  /* the dock leaves its box and runs along the bottom edge */
+  .dock { position: fixed; z-index: 2; left: max(28px, env(safe-area-inset-left, 0px)); right: max(28px, env(safe-area-inset-right, 0px));
+    bottom: max(24px, env(safe-area-inset-bottom, 0px)); width: auto; padding: 0;
+    flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 28px; }
+  .dock.glass { border: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .dock .ctl-side { flex: none; width: 210px; gap: 8px; }
+  .dock-btns { flex: none; }
+  .dock-btns .btn { flex: none; }
+  .dock-row { flex: 1 1 220px; max-width: 340px; }
+  .dock-style { flex: 0 1 420px; min-width: 330px; flex-direction: row; align-items: center; gap: 12px; }
+  .dock .note, .dock .rp { position: absolute; left: 0; bottom: calc(100% + 14px); max-width: min(520px, 50vw); }
+  .dock .rp { width: min(420px, 50vw); }
+}
+
+/* ---------- ambient / fullscreen screensaver ---------- */
+.ambient {
+  position: fixed; inset: 0; z-index: 90; background-color: var(--bg);
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  touch-action: none; -webkit-user-select: none; user-select: none;
+  opacity: 0; visibility: hidden; transition: opacity .7s ease, visibility .7s;
+}
+.ambient.on { opacity: 1; visibility: visible; }
+#ambWave { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.amb-top, .amb-bot { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.amb-bot { align-items: flex-end; }
+.amb-place { font: 500 clamp(34px, 6.5vw, 84px)/1.02 var(--sans); letter-spacing: -.02em; text-wrap: balance; }
+.amb-state { display: flex; align-items: center; gap: 10px; margin-top: 12px; font: 500 15px/1.2 var(--sans); color: var(--dim); }
+.amb-state .mono { font-size: 13px; }
+.amb-clock { font: 400 clamp(14px, 1.6vw, 20px)/1 var(--mono); color: var(--dim); }
+.amb-ui { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; transition: opacity .8s ease; }
+.amb-ui .btn { background: color-mix(in srgb, var(--bg) 70%, transparent); }
+.amb-hint { font-size: 11px; color: var(--dim); margin-top: 10px; text-align: right; display: none; }
+@media (hover: hover) and (pointer: fine) { .amb-hint { display: block; } }
+.ambient.idle { cursor: none; }
+@media (max-width: 640px) {
+  .amb-bot { flex-direction: column; align-items: stretch; gap: 20px; }
+  .amb-ui { justify-content: flex-start; }
+  .amb-hint { text-align: left; }
+}
+.ambient.idle .amb-ui, .ambient.idle .amb-hint { opacity: 0; pointer-events: none; }
+
+/* ---------- intro splash ---------- */
+.splash {
+  position: fixed; inset: 0; z-index: 100; background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px));
+  cursor: pointer; touch-action: none;
+  animation: sp-out .7s ease 3.3s forwards;
+}
+.splash.gone { animation: sp-skip .35s ease forwards; }
+.sp-inner { width: min(320px, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 22px; }
+.sp-wave { display: block; width: 100%; height: auto; overflow: visible; }
+.sp-wave path { fill: none; stroke: var(--fg); stroke-width: 1; stroke-dasharray: 420; stroke-dashoffset: 420; opacity: .35; animation: sp-draw 1.7s cubic-bezier(.4, 0, .2, 1) forwards; }
+.sp-wave path:nth-child(1) { transform: translateY(-11px); animation-delay: .55s; }
+.sp-wave path:nth-child(2) { stroke: var(--accent); stroke-width: 1.6; opacity: 1; animation-delay: .3s; }
+.sp-wave path:nth-child(3) { transform: translateY(11px); animation-delay: .8s; }
+.sp-word { font: 600 34px/1 var(--sans); white-space: nowrap; animation: sp-word 1.1s cubic-bezier(.2, .7, .2, 1) .5s both; }
+.sp-word span { color: var(--dim); font-weight: 500; }
+.sp-sub { font: 500 11px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); animation: sp-fade .8s ease 1.4s both; }
+.sp-ticks { display: flex; justify-content: space-between; align-items: flex-end; height: 20px; }
+.sp-ticks i { display: block; width: 1px; height: 8px; background: var(--dim); transform-origin: bottom; animation: sp-tick .35s ease both; animation-delay: calc(1.3s + var(--i) * .07s); }
+.sp-ticks i:nth-child(4n+1) { height: 16px; }
+.sp-ticks i:last-child { width: 2px; height: 20px; background: var(--accent); }
+.sp-skip { position: absolute; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); text-align: center; font: 400 11px/1 var(--mono); color: var(--dim); animation: sp-fade .8s ease 1.2s both; }
+@keyframes sp-draw { to { stroke-dashoffset: 0; } }
+@keyframes sp-word { from { clip-path: inset(0 100% 0 0); letter-spacing: .4em; opacity: 0; } to { clip-path: inset(0 0 0 0); letter-spacing: .01em; opacity: 1; } }
+@keyframes sp-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sp-tick { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes sp-out { to { opacity: 0; visibility: hidden; } }
+@keyframes sp-skip { to { opacity: 0; visibility: hidden; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dot.on { animation: none; }
+  .splash { animation-delay: 1.2s; }
+  .sp-wave path, .sp-word, .sp-sub, .sp-ticks i, .sp-skip { animation: none; }
+  .sp-wave path { stroke-dashoffset: 0; }
+  .ambient { transition: none; }
+}
+</style>
+</head>
+<body>
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="sp-inner">
+    <svg class="sp-wave" viewBox="0 0 300 40" aria-hidden="true">
+      <path d="M0 20 C37 -2, 75 -2, 112 20 S187 42, 225 20 S262 -2, 300 20"/>
+      <path d="M0 20 C37 -2, 75 -2, 112 20 S187 42, 225 20 S262 -2, 300 20"/>
+      <path d="M0 20 C37 -2, 75 -2, 112 20 S187 42, 225 20 S262 -2, 300 20"/>
+    </svg>
+    <div class="sp-word">Weather <span>Drone</span></div>
+    <div class="sp-sub">Atmosphere OS · weather becomes sound</div>
+    <div class="sp-ticks">
+      <i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i><i style="--i:3"></i><i style="--i:4"></i><i style="--i:5"></i><i style="--i:6"></i><i style="--i:7"></i><i style="--i:8"></i><i style="--i:9"></i><i style="--i:10"></i><i style="--i:11"></i><i style="--i:12"></i>
+    </div>
+  </div>
+  <div class="sp-skip">tap to skip</div>
+</div>
+
+<div class="ambient" id="ambient" aria-hidden="true" role="dialog" aria-label="Ambient">
+  <canvas id="ambWave" aria-hidden="true"></canvas>
+  <div class="amb-top">
+    <div class="brand">Weather <span>Drone</span></div>
+    <div class="amb-clock" id="ambClock">--:--</div>
+  </div>
+  <div class="amb-bot">
+    <div>
+      <div class="amb-place" id="ambPlace">Brno</div>
+      <div class="amb-state"><span class="dot" id="ambDot"></span><span id="ambState">Silent</span><span>·</span><span class="mono" id="ambWind">—</span></div>
+    </div>
+    <div>
+      <div class="amb-ui">
+        <button class="btn" id="ambPlay">Start sound</button>
+        <button class="btn" id="ambExit">Exit</button>
+      </div>
+      <div class="amb-hint" id="ambHint"></div>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">Weather <span>Drone</span><span class="os">Atmosphere OS</span></div>
+    <div class="top-r">
+      <div class="clock mono" id="clock">--:--</div>
+      <button class="btn" id="moreBtn" aria-expanded="false" aria-controls="drawer" aria-keyshortcuts="S">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.5h7M11 3.5h2M1 10.5h2M6 10.5h7"/><circle cx="9.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="10.5" r="1.5"/></svg>
+        <span id="moreLabel">Settings</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="pl" id="place">Brno</div>
+    <div class="meta"><span class="co mono" id="coords">49.20° N · 16.61° E</span><span class="tag" id="srcTag">Sample</span></div>
+    <div class="wind"><span class="label" data-i18n="wind">Wind</span><span class="mono" id="windRead">—</span></div>
+  </div>
+
+  <section class="s-wind">
+    <canvas id="wave" role="img" aria-label="Wind animation"></canvas>
+  </section>
+
+  <div class="dock glass">
+    <div class="dock-main">
+      <button class="dial" id="play" aria-pressed="false" aria-label="Start sound" aria-keyshortcuts="Space">
+        <span class="ring"></span><span class="cap"></span><span class="glyph"></span>
+      </button>
+      <div class="ctl-side">
+        <div class="state"><span class="dot" id="dot"></span><span id="stateTxt">Silent</span></div>
+        <div class="seg fill" role="group" aria-label="Data source" data-i18n-aria="source">
+          <button id="segLive" aria-pressed="false" aria-keyshortcuts="M" data-i18n="live">Live</button>
+          <button id="segMan" aria-pressed="true" aria-keyshortcuts="M" data-i18n="manual">Manual</button>
+        </div>
+      </div>
+    </div>
+    <div class="dock-btns">
+      <button class="btn" id="ambBtn" aria-keyshortcuts="F">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9"/></svg>
+        <span data-i18n="ambient">Ambient</span>
+      </button>
+      <button class="btn" id="rpBtn" aria-pressed="false" aria-keyshortcuts="D">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.2 8.5A5 5 0 1 0 3.6 3.4"/><path d="M2.5 1v3h3"/></svg>
+        <span id="rpLabel">Replay day</span>
+      </button>
+    </div>
+    <div class="rp" id="rp" hidden><div class="rp-bar"><i id="rpFill"></i></div><span class="mono" id="rpTime"></span></div>
+    <div class="note" id="note" aria-live="polite"></div>
+    <div class="dock-row"><label class="label" for="r-vol" data-i18n="volume">Volume</label><input id="r-vol" type="range" min="0" max="100" step="1"><span class="mono" id="v-vol"></span></div>
+    <div class="dock-style">
+      <span class="label" data-i18n="style">Style</span>
+      <div class="seg fill" id="styleSeg" role="group" aria-label="Style" data-i18n-aria="style"><button data-style="eol" aria-pressed="false" data-i18n="styleEol">Aeolian</button><button data-style="tape" aria-pressed="true" data-i18n="styleTape">Tape</button><button data-style="airport" aria-pressed="false" data-i18n="styleAir">Airport</button><button data-style="pearl" aria-pressed="false" data-i18n="stylePearl">Pearl</button><button data-style="loops" aria-pressed="false" data-i18n="styleLoops">Loops</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="drawerTitle">
+  <div class="drawer-head">
+    <h2 id="drawerTitle">Settings</h2>
+    <button class="btn" id="drawerClose" aria-label="Close">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12"/></svg>
+    </button>
+  </div>
+
+  <section class="s-view">
+    <div class="sec-head"><span class="label" data-i18n="anim">Animation</span></div>
+    <div class="seg fill" id="animSeg" role="group" aria-label="Animation" data-i18n-aria="anim"><button data-anim="full" aria-pressed="false" data-i18n="animFull">Full</button><button data-anim="calm" aria-pressed="true" data-i18n="animCalm">Calm</button><button data-anim="off" aria-pressed="false" data-i18n="off">Off</button></div>
+  </section>
+
+  <section class="s-sound">
+    <div class="sec-head"><span class="label" data-i18n="sound">Sound</span><span class="mono" id="sleepRead"></span></div>
+    <div class="row dn"><span class="label" data-i18n="sleepTimer">Sleep timer</span>
+      <div class="seg fill" id="sleepSeg" role="group" aria-label="Sleep timer" data-i18n-aria="sleepTimer"><button data-min="0" aria-pressed="true" data-i18n="off">Off</button><button data-min="15" aria-pressed="false">15</button><button data-min="30" aria-pressed="false">30</button><button data-min="60" aria-pressed="false">60</button><button data-min="90" aria-pressed="false">90</button></div>
+    </div>
+    <div class="row"><label class="label" for="r-char" data-i18n="character">Character</label><input id="r-char" type="range" min="-100" max="100" step="1" title="darker ← · → brighter"><span class="mono" id="v-char"></span></div>
+    <div class="row dn"><span class="label" data-i18n="replayLen">Day replay, min</span>
+      <div class="seg fill" id="rpSeg" role="group" aria-label="Day replay" data-i18n-aria="replayLen"><button data-min="5" aria-pressed="false">5</button><button data-min="10" aria-pressed="true">10</button><button data-min="20" aria-pressed="false">20</button></div>
+    </div>
+  </section>
+
+  <section class="s-params">
+    <div class="sec-head"><span class="label" data-i18n="parameters">Parameters</span><span class="label" id="paramHint">drag a slider</span></div>
+    <div class="row"><label class="label" for="r-temp" data-i18n="temp">Temperature</label><input id="r-temp" type="range" min="-15" max="35" step="0.5"><span class="mono" id="v-temp"></span></div>
+    <div class="row"><label class="label" for="r-wind" data-i18n="wind">Wind</label><input id="r-wind" type="range" min="0" max="130" step="1"><span class="mono" id="v-wind"></span></div>
+    <div class="row"><label class="label" for="r-precip" data-i18n="precip">Rain</label><input id="r-precip" type="range" min="0" max="10" step="0.1"><span class="mono" id="v-precip"></span></div>
+    <div class="row"><label class="label" for="r-cloud" data-i18n="cloud">Cloud cover</label><input id="r-cloud" type="range" min="0" max="100" step="1"><span class="mono" id="v-cloud"></span></div>
+    <div class="row"><label class="label" for="r-hum" data-i18n="hum">Humidity</label><input id="r-hum" type="range" min="0" max="100" step="1"><span class="mono" id="v-hum"></span></div>
+    <div class="row"><label class="label" for="r-press" data-i18n="press">Pressure</label><input id="r-press" type="range" min="970" max="1045" step="1"><span class="mono" id="v-press"></span></div>
+    <div class="row dn"><span class="label" data-i18n="timeOfDay">Time of day</span>
+      <div class="seg fill" role="group" aria-label="Time of day" data-i18n-aria="timeOfDay"><button id="segDay" aria-pressed="false" data-i18n="day">Day</button><button id="segNight" aria-pressed="true" data-i18n="night">Night</button></div>
+    </div>
+  </section>
+
+  <section class="s-charts">
+    <div class="sec-head"><span class="label" data-i18n="hours24">24 hours</span><span class="label" id="chartSrc">estimated from sample</span></div>
+    <div class="chart">
+      <div class="sec-head"><span class="label" data-i18n="chTemp">Temperature °C</span><span class="mono" id="rg-temp"></span></div>
+      <div class="spark" id="sp-temp"></div>
+    </div>
+    <div class="chart">
+      <div class="sec-head"><span class="label" data-i18n="chWind">Wind km/h</span><span class="mono" id="rg-wind"></span></div>
+      <div class="spark" id="sp-wind"></div>
+    </div>
+    <div class="chart">
+      <div class="sec-head"><span class="label" data-i18n="chRain">Rain mm/h</span><span class="mono" id="rg-rain"></span></div>
+      <div class="spark" id="sp-rain"></div>
+      <div class="axis mono"><span style="left:0" id="axL">−6 h</span><span style="left:26%;transform:translateX(-50%)" id="axN">now</span><span style="right:0" id="axR">+18 h</span></div>
+    </div>
+  </section>
+
+  <section class="s-score">
+    <div class="sec-head"><span class="label" data-i18n="score">Score</span><span class="label" data-i18n="scoreSub">how weather became sound</span></div>
+    <dl class="score">
+      <dt class="label" data-i18n="kMode">Mode</dt><dd class="mono" id="sc-key"></dd>
+      <dt class="label" data-i18n="kFilter">Filter</dt><dd class="mono" id="sc-cut"></dd>
+      <dt class="label" data-i18n="kVoices">Voices</dt><dd class="mono" id="sc-voices"></dd>
+      <dt class="label" data-i18n="kAeol">Aeolian</dt><dd class="mono" id="sc-aeol"></dd>
+      <dt class="label" data-i18n="kRain">Rain</dt><dd class="mono" id="sc-rain"></dd>
+      <dt class="label" data-i18n="timeOfDay">Time of day</dt><dd class="mono" id="sc-night"></dd>
+    </dl>
+  </section>
+
+  <footer class="foot">
+    <p class="kbd-hint" id="kbdHint"></p>
+    <p class="foot-lang"><select id="lang" aria-label="Language" data-i18n-aria="language">
+      <option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="it">Italiano</option><option value="pt">Português</option><option value="ru">Русский</option><option value="zh">简体中文</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="cs">Čeština</option>
+    </select></p>
+    <p data-i18n="foot">Weather: Open-Meteo, no API key. City name: BigDataCloud. Your coordinates are sent only to these two services, to get the weather and the place name. Sound is synthesised in the browser and never recorded.</p>
+  </footer>
+</aside>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const expo = rate => -Math.log(1 - Math.random() * 0.9999) / rate;
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const NOTES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+const SCALES = {
+  'Major pentatonic': [0, 2, 4, 7, 9],       // clear day: open, sunny
+  'Suspended pentatonic': [0, 2, 5, 7, 9],   // overcast day / cloudy night: floating, no 3rd
+  'Egyptian pentatonic': [0, 2, 5, 7, 10]    // night: calm, spacious, no 3rd to pull it dark
+};
+const BFT_MIN = [1, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103, 118];
+const bft = w => BFT_MIN.filter(m => w >= m).length;
+
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const smooth = x => x * x * (3 - 2 * x);
+function noise(x) { const i = Math.floor(x), f = x - i; return (hash(i) + (hash(i + 1) - hash(i)) * smooth(f)) * 2 - 1; }
+const gust = x => clamp(0.5 + 0.34 * noise(x * 0.33) + 0.2 * noise(x * 1.1 + 17), 0, 1);
+
+/* ---------- i18n ---------- */
+const STR = {
+en: { sound: "Sound", volume: "Volume", sleepTimer: "Sleep timer", off: "Off", sleepEnded: "Sleep timer finished. The sound faded out.", wind: "Wind", live: "Live", manual: "Manual", day: "Day", night: "Night", parameters: "Parameters", hintManual: "drag a slider", hintLive: "from the server", temp: "Temperature", precip: "Rain", cloud: "Cloud cover", hum: "Humidity", press: "Pressure", timeOfDay: "Time of day", source: "Data source", language: "Language", hours24: "24 hours", chartSample: "estimated from sample", chartForecast: "Open-Meteo forecast", chTemp: "Temperature °C", chWind: "Wind km/h", chRain: "Rain mm/h", axisBack: "−6 h", axisNow: "now", axisFwd: "+18 h", score: "Score", scoreSub: "how weather became sound", kMode: "Mode", kFilter: "Filter", kVoices: "Voices", kAeol: "Aeolian harp", kRain: "Rain", foot: "Weather: Open-Meteo, no API key. Sound is synthesised in the browser and never recorded. Location is used only to request the weather.", sample: "Sample", city: "Brno", yourLoc: "Your location", silent: "Silent", playing: "Playing", startSound: "Start sound", stopSound: "Stop sound", windAnim: "Wind animation: {n} km/h", voicesDesc: "6 triangle voices + {n} swells/min", rainDesc: "hiss + {n} drops/s", none: "none", nightDesc: "night · sub-octaves, closed filter", dayDesc: "day · open filter, harmonics", kmh: "km/h", mmh: "mm/h", hpa: "hPa", hz: "Hz", ambient: "Ambient", exitAmbient: "Exit", keySpace: "Space", keysPlay: "sound", keysMode: "live / manual", keysFull: "ambient",
+  noAudio: "Web Audio is not supported in this browser.", locating: "Finding your location…", locFail: "Location is unavailable or blocked. Staying in manual mode.", loadingW: "Loading weather…", apiFail: "Cannot reach the weather API. Staying in manual mode.", liveNote: "Data from Open-Meteo. Refreshes every 10 minutes.", refreshFail: "Could not refresh the weather; still playing the last data.", manualNote: "Sample values. Drag the sliders and hear the sound change.", startNote: "Sample values. Drag the sliders, or tap Live to use the weather where you are.",
+  bft: ["Calm", "Light air", "Light breeze", "Gentle breeze", "Moderate breeze", "Fresh breeze", "Strong breeze", "Near gale", "Gale", "Strong gale", "Storm", "Violent storm", "Hurricane"] },
+es: { sound: "Sonido", volume: "Volumen", sleepTimer: "Temporizador", off: "No", sleepEnded: "Temporizador terminado. El sonido se desvaneció.", wind: "Viento", live: "En vivo", manual: "Manual", day: "Día", night: "Noche", parameters: "Parámetros", hintManual: "arrastra un control", hintLive: "desde el servidor", temp: "Temperatura", precip: "Lluvia", cloud: "Nubosidad", hum: "Humedad", press: "Presión", timeOfDay: "Momento del día", source: "Fuente de datos", language: "Idioma", hours24: "24 horas", chartSample: "estimado a partir del ejemplo", chartForecast: "pronóstico de Open-Meteo", chTemp: "Temperatura °C", chWind: "Viento km/h", chRain: "Lluvia mm/h", axisBack: "−6 h", axisNow: "ahora", axisFwd: "+18 h", score: "Partitura", scoreSub: "cómo el clima se volvió sonido", kMode: "Modo", kFilter: "Filtro", kVoices: "Voces", kAeol: "Arpa eólica", kRain: "Lluvia", foot: "Clima: Open-Meteo, sin clave de API. El sonido se sintetiza en el navegador y nunca se graba. La ubicación solo se usa para pedir el clima.", sample: "Ejemplo", city: "Brno", yourLoc: "Tu ubicación", silent: "Silencio", playing: "Sonando", startSound: "Iniciar sonido", stopSound: "Detener sonido", windAnim: "Animación del viento: {n} km/h", voicesDesc: "6 voces triangulares + {n} oleadas/min", rainDesc: "susurro + {n} gotas/s", none: "ninguna", nightDesc: "noche · suboctavas, filtro cerrado", dayDesc: "día · filtro abierto, armónicos", ambient: "Ambiente", exitAmbient: "Salir", keySpace: "Espacio", keysPlay: "sonido", keysMode: "en vivo / manual", keysFull: "ambiente",
+  noAudio: "Web Audio no es compatible con este navegador.", locating: "Buscando tu ubicación…", locFail: "La ubicación no está disponible o está bloqueada. Sigo en modo manual.", loadingW: "Cargando el clima…", apiFail: "No se puede acceder a la API del clima. Sigo en modo manual.", liveNote: "Datos de Open-Meteo. Se actualizan cada 10 minutos.", refreshFail: "No se pudo actualizar el clima; sigue sonando con los últimos datos.", manualNote: "Valores de ejemplo. Arrastra los controles y escucha cómo cambia el sonido.", startNote: "Valores de ejemplo. Arrastra los controles o toca En vivo para usar el clima de tu ubicación.",
+  bft: ["Calma", "Ventolina", "Flojito", "Flojo", "Moderado", "Fresquito", "Fresco", "Frescachón", "Temporal", "Temporal fuerte", "Temporal duro", "Temporal muy duro", "Huracán"] },
+fr: { sound: "Son", volume: "Volume", sleepTimer: "Minuteur", off: "Non", sleepEnded: "Minuteur terminé. Le son s’est estompé.", wind: "Vent", live: "En direct", manual: "Manuel", day: "Jour", night: "Nuit", parameters: "Paramètres", hintManual: "faites glisser un curseur", hintLive: "depuis le serveur", temp: "Température", precip: "Pluie", cloud: "Nébulosité", hum: "Humidité", press: "Pression", timeOfDay: "Moment de la journée", source: "Source des données", language: "Langue", hours24: "24 heures", chartSample: "estimé d’après l’exemple", chartForecast: "prévisions Open-Meteo", chTemp: "Température °C", chWind: "Vent km/h", chRain: "Pluie mm/h", axisBack: "−6 h", axisNow: "maintenant", axisFwd: "+18 h", score: "Partition", scoreSub: "comment la météo est devenue son", kMode: "Mode", kFilter: "Filtre", kVoices: "Voix", kAeol: "Harpe éolienne", kRain: "Pluie", foot: "Météo : Open-Meteo, sans clé d’API. Le son est synthétisé dans le navigateur et jamais enregistré. La position sert uniquement à demander la météo.", sample: "Exemple", city: "Brno", yourLoc: "Votre position", silent: "Silence", playing: "En lecture", startSound: "Lancer le son", stopSound: "Arrêter le son", windAnim: "Animation du vent : {n} km/h", voicesDesc: "6 voix triangulaires + {n} vagues/min", rainDesc: "bruissement + {n} gouttes/s", none: "aucune", nightDesc: "nuit · sous-octaves, filtre fermé", dayDesc: "jour · filtre ouvert, harmoniques", ambient: "Ambiance", exitAmbient: "Quitter", keySpace: "Espace", keysPlay: "son", keysMode: "direct / manuel", keysFull: "ambiance",
+  noAudio: "Web Audio n’est pas pris en charge par ce navigateur.", locating: "Recherche de votre position…", locFail: "La position est indisponible ou bloquée. Je reste en mode manuel.", loadingW: "Chargement de la météo…", apiFail: "Impossible de joindre l’API météo. Je reste en mode manuel.", liveNote: "Données Open-Meteo. Mise à jour toutes les 10 minutes.", refreshFail: "Impossible d’actualiser la météo ; lecture avec les dernières données.", manualNote: "Valeurs d’exemple. Faites glisser les curseurs et écoutez le son changer.", startNote: "Valeurs d’exemple. Faites glisser les curseurs ou touchez En direct pour utiliser la météo de votre position.",
+  bft: ["Calme", "Très légère brise", "Légère brise", "Petite brise", "Jolie brise", "Bonne brise", "Vent frais", "Grand frais", "Coup de vent", "Fort coup de vent", "Tempête", "Violente tempête", "Ouragan"] },
+de: { sound: "Klang", volume: "Lautstärke", sleepTimer: "Schlaftimer", off: "Aus", sleepEnded: "Schlaftimer beendet. Der Klang wurde ausgeblendet.", wind: "Wind", live: "Live", manual: "Manuell", day: "Tag", night: "Nacht", parameters: "Parameter", hintManual: "Regler ziehen", hintLive: "vom Server", temp: "Temperatur", precip: "Regen", cloud: "Bewölkung", hum: "Feuchte", press: "Luftdruck", timeOfDay: "Tageszeit", source: "Datenquelle", language: "Sprache", hours24: "24 Stunden", chartSample: "aus dem Beispiel berechnet", chartForecast: "Open-Meteo-Vorhersage", chTemp: "Temperatur °C", chWind: "Wind km/h", chRain: "Regen mm/h", axisBack: "−6 Std.", axisNow: "jetzt", axisFwd: "+18 Std.", score: "Partitur", scoreSub: "wie Wetter zu Klang wurde", kMode: "Tonart", kFilter: "Filter", kVoices: "Stimmen", kAeol: "Äolsharfe", kRain: "Regen", foot: "Wetter: Open-Meteo, ohne API-Schlüssel. Der Klang wird im Browser erzeugt und nie aufgezeichnet. Der Standort wird nur für die Wetterabfrage verwendet.", sample: "Beispiel", city: "Brno", yourLoc: "Dein Standort", silent: "Stille", playing: "Spielt", startSound: "Klang starten", stopSound: "Klang stoppen", windAnim: "Windanimation: {n} km/h", voicesDesc: "6 Dreieckstimmen + {n} Wellen/min", rainDesc: "Rauschen + {n} Tropfen/s", none: "keiner", nightDesc: "Nacht · Suboktaven, Filter zu", dayDesc: "Tag · Filter offen, Obertöne", ambient: "Ambient", exitAmbient: "Beenden", keySpace: "Leertaste", keysPlay: "Klang", keysMode: "Live / manuell", keysFull: "Ambient",
+  noAudio: "Web Audio wird in diesem Browser nicht unterstützt.", locating: "Standort wird ermittelt …", locFail: "Standort nicht verfügbar oder blockiert. Ich bleibe im manuellen Modus.", loadingW: "Wetter wird geladen …", apiFail: "Wetter-API nicht erreichbar. Ich bleibe im manuellen Modus.", liveNote: "Daten von Open-Meteo. Aktualisierung alle 10 Minuten.", refreshFail: "Wetter konnte nicht aktualisiert werden; es läuft mit den letzten Daten weiter.", manualNote: "Beispielwerte. Regler ziehen und den Klang verändern hören.", startNote: "Beispielwerte. Regler ziehen oder auf Live tippen, um das Wetter an deinem Standort zu nutzen.",
+  bft: ["Windstille", "Leiser Zug", "Leichte Brise", "Schwache Brise", "Mäßige Brise", "Frische Brise", "Starker Wind", "Steifer Wind", "Stürmischer Wind", "Sturm", "Schwerer Sturm", "Orkanartiger Sturm", "Orkan"] },
+it: { sound: "Suono", volume: "Volume", sleepTimer: "Timer", off: "No", sleepEnded: "Timer terminato. Il suono si è dissolto.", wind: "Vento", live: "Live", manual: "Manuale", day: "Giorno", night: "Notte", parameters: "Parametri", hintManual: "trascina un cursore", hintLive: "dal server", temp: "Temperatura", precip: "Pioggia", cloud: "Nuvolosità", hum: "Umidità", press: "Pressione", timeOfDay: "Momento della giornata", source: "Fonte dei dati", language: "Lingua", hours24: "24 ore", chartSample: "stimato dall’esempio", chartForecast: "previsioni Open-Meteo", chTemp: "Temperatura °C", chWind: "Vento km/h", chRain: "Pioggia mm/h", axisBack: "−6 h", axisNow: "ora", axisFwd: "+18 h", score: "Partitura", scoreSub: "come il meteo è diventato suono", kMode: "Modo", kFilter: "Filtro", kVoices: "Voci", kAeol: "Arpa eolia", kRain: "Pioggia", foot: "Meteo: Open-Meteo, senza chiave API. Il suono viene sintetizzato nel browser e non viene mai registrato. La posizione serve solo a richiedere il meteo.", sample: "Esempio", city: "Brno", yourLoc: "La tua posizione", silent: "Silenzio", playing: "In riproduzione", startSound: "Avvia il suono", stopSound: "Ferma il suono", windAnim: "Animazione del vento: {n} km/h", voicesDesc: "6 voci triangolari + {n} onde/min", rainDesc: "fruscio + {n} gocce/s", none: "nessuna", nightDesc: "notte · sottottave, filtro chiuso", dayDesc: "giorno · filtro aperto, armonici", ambient: "Ambient", exitAmbient: "Esci", keySpace: "Spazio", keysPlay: "suono", keysMode: "live / manuale", keysFull: "ambient",
+  noAudio: "Web Audio non è supportato da questo browser.", locating: "Cerco la tua posizione…", locFail: "Posizione non disponibile o bloccata. Resto in modalità manuale.", loadingW: "Caricamento del meteo…", apiFail: "Impossibile raggiungere l’API meteo. Resto in modalità manuale.", liveNote: "Dati da Open-Meteo. Aggiornamento ogni 10 minuti.", refreshFail: "Impossibile aggiornare il meteo; continuo con gli ultimi dati.", manualNote: "Valori di esempio. Trascina i cursori e ascolta il suono cambiare.", startNote: "Valori di esempio. Trascina i cursori o tocca Live per usare il meteo della tua posizione.",
+  bft: ["Calma", "Bava di vento", "Brezza leggera", "Brezza tesa", "Vento moderato", "Vento teso", "Vento fresco", "Vento forte", "Burrasca", "Burrasca forte", "Tempesta", "Tempesta violenta", "Uragano"] },
+pt: { sound: "Som", volume: "Volume", sleepTimer: "Timer de sono", off: "Não", sleepEnded: "Timer encerrado. O som foi diminuindo até parar.", wind: "Vento", live: "Ao vivo", manual: "Manual", day: "Dia", night: "Noite", parameters: "Parâmetros", hintManual: "arraste um controle", hintLive: "do servidor", temp: "Temperatura", precip: "Chuva", cloud: "Nuvens", hum: "Umidade", press: "Pressão", timeOfDay: "Período do dia", source: "Fonte de dados", language: "Idioma", hours24: "24 horas", chartSample: "estimado a partir do exemplo", chartForecast: "previsão Open-Meteo", chTemp: "Temperatura °C", chWind: "Vento km/h", chRain: "Chuva mm/h", axisBack: "−6 h", axisNow: "agora", axisFwd: "+18 h", score: "Partitura", scoreSub: "como o clima virou som", kMode: "Modo", kFilter: "Filtro", kVoices: "Vozes", kAeol: "Harpa eólia", kRain: "Chuva", foot: "Clima: Open-Meteo, sem chave de API. O som é sintetizado no navegador e nunca é gravado. A localização é usada apenas para consultar o clima.", sample: "Exemplo", city: "Brno", yourLoc: "Sua localização", silent: "Silêncio", playing: "Tocando", startSound: "Iniciar som", stopSound: "Parar som", windAnim: "Animação do vento: {n} km/h", voicesDesc: "6 vozes triangulares + {n} ondas/min", rainDesc: "chiado + {n} gotas/s", none: "nenhuma", nightDesc: "noite · suboitavas, filtro fechado", dayDesc: "dia · filtro aberto, harmônicos", ambient: "Ambiente", exitAmbient: "Sair", keySpace: "Espaço", keysPlay: "som", keysMode: "ao vivo / manual", keysFull: "ambiente",
+  noAudio: "O Web Audio não é compatível com este navegador.", locating: "Buscando sua localização…", locFail: "Localização indisponível ou bloqueada. Continuo no modo manual.", loadingW: "Carregando o clima…", apiFail: "Não foi possível acessar a API de clima. Continuo no modo manual.", liveNote: "Dados do Open-Meteo. Atualização a cada 10 minutos.", refreshFail: "Não foi possível atualizar o clima; continua tocando com os últimos dados.", manualNote: "Valores de exemplo. Arraste os controles e ouça o som mudar.", startNote: "Valores de exemplo. Arraste os controles ou toque em Ao vivo para usar o clima da sua localização.",
+  bft: ["Calmaria", "Aragem", "Brisa leve", "Brisa fraca", "Brisa moderada", "Brisa forte", "Vento fresco", "Vento forte", "Ventania", "Ventania forte", "Tempestade", "Tempestade violenta", "Furacão"] },
+ru: { sound: "Звук", volume: "Громкость", sleepTimer: "Таймер сна", off: "Выкл", sleepEnded: "Таймер сна завершён. Звук плавно затих.", wind: "Ветер", live: "Онлайн", manual: "Ручной", day: "День", night: "Ночь", parameters: "Параметры", hintManual: "двигайте шкалы", hintLive: "данные с сервера", temp: "Температура", precip: "Осадки", cloud: "Облачность", hum: "Влажность", press: "Давление", timeOfDay: "Время суток", source: "Источник данных", language: "Язык", hours24: "24 часа", chartSample: "расчёт по примеру", chartForecast: "прогноз Open-Meteo", chTemp: "Температура °C", chWind: "Ветер км/ч", chRain: "Осадки мм/ч", axisBack: "−6 ч", axisNow: "сейчас", axisFwd: "+18 ч", score: "Партитура", scoreSub: "как погода стала звуком", kMode: "Лад", kFilter: "Фильтр", kVoices: "Голоса", kAeol: "Эолова арфа", kRain: "Дождь", foot: "Погода: Open-Meteo, без ключа. Звук синтезируется в браузере и нигде не записывается. Геолокация нужна только для запроса погоды.", sample: "Пример", city: "Брно", yourLoc: "Ваше место", silent: "Тишина", playing: "Звучит", startSound: "Запустить звук", stopSound: "Остановить звук", windAnim: "Анимация ветра: {n} км/ч", voicesDesc: "6 треугольных голосов + {n} волн/мин", rainDesc: "шорох + {n} капель/с", none: "нет", nightDesc: "ночь · суб-октавы, закрытый фильтр", dayDesc: "день · открытый фильтр, гармоники", kmh: "км/ч", mmh: "мм/ч", hpa: "гПа", hz: "Гц", ambient: "Эмбиент", exitAmbient: "Выйти", keySpace: "Пробел", keysPlay: "звук", keysMode: "онлайн / ручной", keysFull: "эмбиент",
+  noAudio: "Web Audio не поддерживается в этом браузере.", locating: "Определяю местоположение…", locFail: "Геолокация недоступна или запрещена. Остаюсь в ручном режиме.", loadingW: "Загружаю погоду…", apiFail: "Нет доступа к API погоды. Остаюсь в ручном режиме.", liveNote: "Данные Open-Meteo. Обновление раз в 10 минут.", refreshFail: "Не удалось обновить погоду, звучат прежние данные.", manualNote: "Значения из примера. Двигайте шкалы и слушайте, как меняется звук.", startNote: "Значения из примера. Двигайте шкалы или нажмите «Онлайн», чтобы взять погоду там, где вы.",
+  bft: ["Штиль", "Тихий", "Лёгкий", "Слабый", "Умеренный", "Свежий", "Сильный", "Крепкий", "Очень крепкий", "Шторм", "Сильный шторм", "Жестокий шторм", "Ураган"] },
+zh: { sound: "声音", volume: "音量", sleepTimer: "睡眠定时", off: "关", sleepEnded: "睡眠定时已结束，声音已渐隐。", wind: "风", live: "实时", manual: "手动", day: "白天", night: "夜晚", parameters: "参数", hintManual: "拖动滑块", hintLive: "来自服务器", temp: "气温", precip: "降水", cloud: "云量", hum: "湿度", press: "气压", timeOfDay: "昼夜", source: "数据来源", language: "语言", hours24: "24 小时", chartSample: "根据示例估算", chartForecast: "Open-Meteo 预报", chTemp: "气温 °C", chWind: "风速 km/h", chRain: "降水 mm/h", axisBack: "−6 小时", axisNow: "现在", axisFwd: "+18 小时", score: "乐谱", scoreSub: "天气如何变成声音", kMode: "调式", kFilter: "滤波器", kVoices: "声部", kAeol: "风弦琴", kRain: "雨", foot: "天气数据：Open-Meteo，无需密钥。声音在浏览器中合成，不会被录制。位置信息仅用于查询天气。", sample: "示例", city: "布尔诺", yourLoc: "你的位置", silent: "静音", playing: "播放中", startSound: "开始播放", stopSound: "停止播放", windAnim: "风力动画：{n} km/h", voicesDesc: "6 个三角波声部 + 每分钟 {n} 次涌动", rainDesc: "沙沙声 + {n} 滴/秒", none: "无", nightDesc: "夜晚 · 低八度，滤波器收紧", dayDesc: "白天 · 滤波器打开，泛音", ambient: "氛围模式", exitAmbient: "退出", keySpace: "空格", keysPlay: "声音", keysMode: "实时 / 手动", keysFull: "氛围模式",
+  noAudio: "此浏览器不支持 Web Audio。", locating: "正在获取你的位置…", locFail: "无法获取位置，或位置权限被拒绝。保持手动模式。", loadingW: "正在加载天气…", apiFail: "无法连接天气 API。保持手动模式。", liveNote: "数据来自 Open-Meteo，每 10 分钟更新一次。", refreshFail: "无法更新天气，继续使用最近的数据播放。", manualNote: "示例数值。拖动滑块，听声音如何变化。", startNote: "示例数值。拖动滑块，或点按“实时”使用你所在位置的天气。",
+  bft: ["无风", "软风", "轻风", "微风", "和风", "清风", "强风", "疾风", "大风", "烈风", "狂风", "暴风", "飓风"] },
+ja: { sound: "サウンド", volume: "音量", sleepTimer: "スリープタイマー", off: "オフ", sleepEnded: "スリープタイマーが終了しました。音はフェードアウトしました。", wind: "風", live: "ライブ", manual: "手動", day: "昼", night: "夜", parameters: "パラメータ", hintManual: "スライダーをドラッグ", hintLive: "サーバーから取得", temp: "気温", precip: "降水", cloud: "雲量", hum: "湿度", press: "気圧", timeOfDay: "時間帯", source: "データソース", language: "言語", hours24: "24時間", chartSample: "サンプルからの推定", chartForecast: "Open-Meteo の予報", chTemp: "気温 °C", chWind: "風速 km/h", chRain: "降水 mm/h", axisBack: "−6時間", axisNow: "現在", axisFwd: "+18時間", score: "スコア", scoreSub: "天気が音になるまで", kMode: "音階", kFilter: "フィルター", kVoices: "ボイス", kAeol: "エオリアンハープ", kRain: "雨", foot: "天気：Open-Meteo（APIキー不要）。音はブラウザ内で合成され、録音されません。位置情報は天気の取得にのみ使用します。", sample: "サンプル", city: "ブルノ", yourLoc: "現在地", silent: "停止中", playing: "再生中", startSound: "再生を開始", stopSound: "再生を停止", windAnim: "風のアニメーション：{n} km/h", voicesDesc: "三角波6声 + うねり {n}回/分", rainDesc: "さざめき + 雨粒 {n}/秒", none: "なし", nightDesc: "夜 · サブオクターブ、閉じたフィルター", dayDesc: "昼 · 開いたフィルター、倍音", ambient: "アンビエント", exitAmbient: "終了", keySpace: "スペース", keysPlay: "サウンド", keysMode: "ライブ / 手動", keysFull: "アンビエント",
+  noAudio: "このブラウザは Web Audio に対応していません。", locating: "現在地を取得しています…", locFail: "位置情報が利用できないか、ブロックされています。手動モードのままにします。", loadingW: "天気を読み込んでいます…", apiFail: "天気 API に接続できません。手動モードのままにします。", liveNote: "データ提供：Open-Meteo。10分ごとに更新します。", refreshFail: "天気を更新できませんでした。直前のデータで再生を続けます。", manualNote: "サンプル値です。スライダーを動かして、音の変化を聴いてみてください。", startNote: "サンプル値です。スライダーを動かすか、「ライブ」をタップして現在地の天気を使います。",
+  bft: ["静穏", "至軽風", "軽風", "軟風", "和風", "疾風", "雄風", "強風", "疾強風", "大強風", "全強風", "暴風", "颶風"] },
+ko: { sound: "소리", volume: "볼륨", sleepTimer: "수면 타이머", off: "끔", sleepEnded: "수면 타이머가 끝났습니다. 소리가 서서히 꺼졌습니다.", wind: "바람", live: "실시간", manual: "수동", day: "낮", night: "밤", parameters: "매개변수", hintManual: "슬라이더를 드래그하세요", hintLive: "서버에서 가져옴", temp: "기온", precip: "강수", cloud: "구름량", hum: "습도", press: "기압", timeOfDay: "시간대", source: "데이터 소스", language: "언어", hours24: "24시간", chartSample: "예시 기반 추정", chartForecast: "Open-Meteo 예보", chTemp: "기온 °C", chWind: "풍속 km/h", chRain: "강수 mm/h", axisBack: "−6시간", axisNow: "지금", axisFwd: "+18시간", score: "악보", scoreSub: "날씨가 소리가 되는 과정", kMode: "음계", kFilter: "필터", kVoices: "음성", kAeol: "에올리안 하프", kRain: "비", foot: "날씨: Open-Meteo, API 키 불필요. 소리는 브라우저에서 합성되며 녹음되지 않습니다. 위치는 날씨 요청에만 사용됩니다.", sample: "예시", city: "브르노", yourLoc: "내 위치", silent: "정지", playing: "재생 중", startSound: "소리 시작", stopSound: "소리 정지", windAnim: "바람 애니메이션: {n} km/h", voicesDesc: "삼각파 6성부 + 분당 {n}회 물결", rainDesc: "사각거림 + 빗방울 {n}/초", none: "없음", nightDesc: "밤 · 서브 옥타브, 닫힌 필터", dayDesc: "낮 · 열린 필터, 배음", ambient: "앰비언트", exitAmbient: "나가기", keySpace: "스페이스", keysPlay: "소리", keysMode: "실시간 / 수동", keysFull: "앰비언트",
+  noAudio: "이 브라우저는 Web Audio를 지원하지 않습니다.", locating: "위치를 확인하는 중…", locFail: "위치를 사용할 수 없거나 차단되었습니다. 수동 모드를 유지합니다.", loadingW: "날씨를 불러오는 중…", apiFail: "날씨 API에 연결할 수 없습니다. 수동 모드를 유지합니다.", liveNote: "데이터: Open-Meteo. 10분마다 갱신됩니다.", refreshFail: "날씨를 갱신하지 못했습니다. 마지막 데이터로 계속 재생합니다.", manualNote: "예시 값입니다. 슬라이더를 움직여 소리가 바뀌는 것을 들어 보세요.", startNote: "예시 값입니다. 슬라이더를 움직이거나 ‘실시간’을 눌러 내 위치의 날씨를 사용하세요.",
+  bft: ["고요", "실바람", "남실바람", "산들바람", "건들바람", "흔들바람", "된바람", "센바람", "큰바람", "큰센바람", "노대바람", "왕바람", "싹쓸바람"] },
+cs: { sound: "Zvuk", volume: "Hlasitost", sleepTimer: "Časovač spánku", off: "Vyp", sleepEnded: "Časovač skončil. Zvuk se postupně ztišil.", wind: "Vítr", live: "Živě", manual: "Ručně", day: "Den", night: "Noc", parameters: "Parametry", hintManual: "přetáhněte posuvník", hintLive: "ze serveru", temp: "Teplota", precip: "Srážky", cloud: "Oblačnost", hum: "Vlhkost", press: "Tlak", timeOfDay: "Denní doba", source: "Zdroj dat", language: "Jazyk", hours24: "24 hodin", chartSample: "odhad podle ukázky", chartForecast: "předpověď Open-Meteo", chTemp: "Teplota °C", chWind: "Vítr km/h", chRain: "Srážky mm/h", axisBack: "−6 h", axisNow: "teď", axisFwd: "+18 h", score: "Partitura", scoreSub: "jak se počasí stalo zvukem", kMode: "Stupnice", kFilter: "Filtr", kVoices: "Hlasy", kAeol: "Eolská harfa", kRain: "Déšť", foot: "Počasí: Open-Meteo, bez API klíče. Zvuk se syntetizuje v prohlížeči a nikdy se nenahrává. Poloha slouží jen k dotazu na počasí.", sample: "Ukázka", city: "Brno", yourLoc: "Vaše poloha", silent: "Ticho", playing: "Hraje", startSound: "Spustit zvuk", stopSound: "Zastavit zvuk", windAnim: "Animace větru: {n} km/h", voicesDesc: "6 trojúhelníkových hlasů + {n} vln/min", rainDesc: "šum + {n} kapek/s", none: "žádný", nightDesc: "noc · suboktávy, zavřený filtr", dayDesc: "den · otevřený filtr, harmonické", ambient: "Ambient", exitAmbient: "Ukončit", keySpace: "Mezerník", keysPlay: "zvuk", keysMode: "živě / ručně", keysFull: "ambient",
+  noAudio: "Tento prohlížeč nepodporuje Web Audio.", locating: "Zjišťuji polohu…", locFail: "Poloha není dostupná nebo je zablokovaná. Zůstávám v ručním režimu.", loadingW: "Načítám počasí…", apiFail: "K API počasí se nelze připojit. Zůstávám v ručním režimu.", liveNote: "Data z Open-Meteo. Aktualizace každých 10 minut.", refreshFail: "Počasí se nepodařilo obnovit; hraje se podle posledních dat.", manualNote: "Ukázkové hodnoty. Přetáhněte posuvníky a poslechněte si, jak se zvuk mění.", startNote: "Ukázkové hodnoty. Přetáhněte posuvníky nebo klepněte na Živě a použijte počasí ve své poloze.",
+  bft: ["Bezvětří", "Vánek", "Slabý vítr", "Mírný vítr", "Dosti čerstvý vítr", "Čerstvý vítr", "Silný vítr", "Prudký vítr", "Bouřlivý vítr", "Vichřice", "Silná vichřice", "Mohutná vichřice", "Orkán"] }
+};
+const EXTRA = {
+  en: { replay: "Replay day", replayStop: "Stop replay", replayLen: "Day replay, min", hintReplay: "replaying the day", chartReplay: "last 24 h · replay", axisDay: "−24 h", keysDay: "replay day" },
+  es: { replay: "Repetir el día", replayStop: "Detener", replayLen: "Repetición del día, min", hintReplay: "reproduciendo el día", chartReplay: "últimas 24 h · repetición", axisDay: "−24 h", keysDay: "repetir el día" },
+  fr: { replay: "Rejouer la journée", replayStop: "Arrêter", replayLen: "Rejouer la journée, min", hintReplay: "la journée est rejouée", chartReplay: "dernières 24 h · relecture", axisDay: "−24 h", keysDay: "rejouer la journée" },
+  de: { replay: "Tag abspielen", replayStop: "Stopp", replayLen: "Tagesrückblick, Min.", hintReplay: "der Tag wird abgespielt", chartReplay: "letzte 24 Std. · Wiedergabe", axisDay: "−24 Std.", keysDay: "Tag abspielen" },
+  it: { replay: "Riascolta il giorno", replayStop: "Ferma", replayLen: "Riascolto del giorno, min", hintReplay: "riascolto del giorno", chartReplay: "ultime 24 h · riascolto", axisDay: "−24 h", keysDay: "riascolta il giorno" },
+  pt: { replay: "Reouvir o dia", replayStop: "Parar", replayLen: "Reouvir o dia, min", hintReplay: "reproduzindo o dia", chartReplay: "últimas 24 h · reprodução", axisDay: "−24 h", keysDay: "reouvir o dia" },
+  ru: { replay: "Память дня", replayStop: "Стоп", replayLen: "Память дня, мин", hintReplay: "воспроизводится день", chartReplay: "прошедшие 24 ч · повтор", axisDay: "−24 ч", keysDay: "память дня" },
+  zh: { replay: "回放今天", replayStop: "停止", replayLen: "回放时长（分钟）", hintReplay: "正在回放这一天", chartReplay: "过去 24 小时 · 回放", axisDay: "−24 小时", keysDay: "回放一天" },
+  ja: { replay: "1日を再生", replayStop: "停止", replayLen: "1日の再生（分）", hintReplay: "1日を再生中", chartReplay: "過去24時間 · 再生", axisDay: "−24時間", keysDay: "1日を再生" },
+  ko: { replay: "하루 다시 듣기", replayStop: "정지", replayLen: "하루 다시 듣기(분)", hintReplay: "하루를 재생 중", chartReplay: "지난 24시간 · 재생", axisDay: "−24시간", keysDay: "하루 다시 듣기" },
+  cs: { replay: "Přehrát den", replayStop: "Zastavit", replayLen: "Přehrání dne, min", hintReplay: "přehrává se den", chartReplay: "posledních 24 h · přehrávání", axisDay: "−24 h", keysDay: "přehrát den" }
+};
+const EXTRA2 = {
+  en: { character: "Character", foot: "Weather: Open-Meteo, no API key. City name: BigDataCloud. Your coordinates are sent only to these two services, to get the weather and the place name. Sound is synthesised in the browser and never recorded.", anim: "Animation", animFull: "Full", animCalm: "Calm", settings: "Settings", close: "Close", more: "More", less: "Less", snowDesc: "snow · soft hush", styleAir: "Airport", stylePearl: "Pearl", styleLoops: "Loops", voicesAir: "7 phase loops, {n}–{m} s", voicesPearl: "piano chords every ~{n} s", voicesLoops: "tape loop · worn {n} %", style: "Style", styleEol: "Aeolian", styleTape: "Tape", voicesTape: "pads · tape · motif {n} BPM", nightDesc: "night · calm, soft filter", dayDesc: "day · bright, harmonics" },
+  es: { character: "Carácter", foot: "Clima: Open-Meteo, sin clave de API. Nombre de la ciudad: BigDataCloud. Tus coordenadas solo se envían a estos dos servicios, para obtener el clima y el nombre del lugar. El sonido se sintetiza en el navegador y nunca se graba.", anim: "Animación", animFull: "Completa", animCalm: "Suave", settings: "Ajustes", close: "Cerrar", more: "Más", less: "Menos", snowDesc: "nieve · susurro suave", styleAir: "Aeropuerto", stylePearl: "Perla", styleLoops: "Bucles", voicesAir: "7 bucles de fase, {n}–{m} s", voicesPearl: "acordes de piano cada ~{n} s", voicesLoops: "bucle de cinta · desgaste {n} %", style: "Estilo", styleEol: "Eólico", styleTape: "Cinta", voicesTape: "pads · cinta · motivo {n} BPM", nightDesc: "noche · calma, filtro suave", dayDesc: "día · luminoso, armónicos" },
+  fr: { character: "Caractère", foot: "Météo : Open-Meteo, sans clé d’API. Nom de la ville : BigDataCloud. Vos coordonnées ne sont envoyées qu’à ces deux services, pour obtenir la météo et le nom du lieu. Le son est synthétisé dans le navigateur et jamais enregistré.", anim: "Animation", animFull: "Complète", animCalm: "Douce", settings: "Réglages", close: "Fermer", more: "Plus", less: "Moins", snowDesc: "neige · murmure feutré", styleAir: "Aéroport", stylePearl: "Perle", styleLoops: "Boucles", voicesAir: "7 boucles de phase, {n}–{m} s", voicesPearl: "accords de piano toutes les ~{n} s", voicesLoops: "boucle de bande · usure {n} %", style: "Style", styleEol: "Éolien", styleTape: "Bande", voicesTape: "nappes · bande · motif {n} BPM", nightDesc: "nuit · calme, filtre doux", dayDesc: "jour · lumineux, harmoniques" },
+  de: { character: "Charakter", foot: "Wetter: Open-Meteo, ohne API-Schlüssel. Ortsname: BigDataCloud. Deine Koordinaten gehen nur an diese beiden Dienste, um Wetter und Ortsnamen abzurufen. Der Klang wird im Browser erzeugt und nie aufgezeichnet.", anim: "Animation", animFull: "Voll", animCalm: "Ruhig", settings: "Einstellungen", close: "Schließen", more: "Mehr", less: "Weniger", snowDesc: "Schnee · gedämpftes Rauschen", styleAir: "Flughafen", stylePearl: "Perle", styleLoops: "Schleifen", voicesAir: "7 Phasenschleifen, {n}–{m} s", voicesPearl: "Klavierakkorde alle ~{n} s", voicesLoops: "Bandschleife · Abnutzung {n} %", style: "Stil", styleEol: "Äolisch", styleTape: "Band", voicesTape: "Flächen · Band · Motiv {n} BPM", nightDesc: "Nacht · ruhig, weicher Filter", dayDesc: "Tag · hell, Obertöne" },
+  it: { character: "Carattere", foot: "Meteo: Open-Meteo, senza chiave API. Nome della città: BigDataCloud. Le coordinate vengono inviate solo a questi due servizi, per ottenere il meteo e il nome del luogo. Il suono viene sintetizzato nel browser e non viene mai registrato.", anim: "Animazione", animFull: "Completa", animCalm: "Calma", settings: "Impostazioni", close: "Chiudi", more: "Altro", less: "Meno", snowDesc: "neve · fruscio ovattato", styleAir: "Aeroporto", stylePearl: "Perla", styleLoops: "Loop", voicesAir: "7 loop di fase, {n}–{m} s", voicesPearl: "accordi di piano ogni ~{n} s", voicesLoops: "loop di nastro · usura {n} %", style: "Stile", styleEol: "Eolio", styleTape: "Nastro", voicesTape: "pad · nastro · motivo {n} BPM", nightDesc: "notte · calma, filtro morbido", dayDesc: "giorno · luminoso, armonici" },
+  pt: { character: "Caráter", foot: "Clima: Open-Meteo, sem chave de API. Nome da cidade: BigDataCloud. Suas coordenadas são enviadas apenas para esses dois serviços, para obter o clima e o nome do local. O som é sintetizado no navegador e nunca é gravado.", anim: "Animação", animFull: "Completa", animCalm: "Suave", settings: "Ajustes", close: "Fechar", more: "Mais", less: "Menos", snowDesc: "neve · sussurro abafado", styleAir: "Aeroporto", stylePearl: "Pérola", styleLoops: "Loops", voicesAir: "7 loops de fase, {n}–{m} s", voicesPearl: "acordes de piano a cada ~{n} s", voicesLoops: "loop de fita · desgaste {n} %", style: "Estilo", styleEol: "Eólio", styleTape: "Fita", voicesTape: "pads · fita · motivo {n} BPM", nightDesc: "noite · calma, filtro suave", dayDesc: "dia · claro, harmônicos" },
+  ru: { character: "Характер", foot: "Погода: Open-Meteo, без ключа. Название города: BigDataCloud. Координаты отправляются только этим двум сервисам — чтобы узнать погоду и название места. Звук синтезируется в браузере и нигде не записывается.", anim: "Анимация", animFull: "Полная", animCalm: "Спокойная", settings: "Настройки", close: "Закрыть", more: "Подробнее", less: "Свернуть", snowDesc: "снег · мягкая тишина", styleAir: "Аэропорт", stylePearl: "Жемчуг", styleLoops: "Петли", voicesAir: "7 фазовых петель, {n}–{m} с", voicesPearl: "аккорды пиано каждые ~{n} с", voicesLoops: "плёночная петля · износ {n} %", style: "Стиль", styleEol: "Эол", styleTape: "Тейп", voicesTape: "пэды · плёнка · мотив {n} BPM", nightDesc: "ночь · спокойно, мягкий фильтр", dayDesc: "день · светло, гармоники" },
+  zh: { character: "性格", foot: "天气数据：Open-Meteo，无需密钥。城市名称：BigDataCloud。你的坐标只会发送给这两个服务，用于获取天气和地名。声音在浏览器中合成，不会被录制。", anim: "动画", animFull: "完整", animCalm: "柔和", settings: "设置", close: "关闭", more: "更多", less: "收起", snowDesc: "雪 · 柔和的静谧", styleAir: "机场", stylePearl: "珍珠", styleLoops: "循环", voicesAir: "7 条相位循环，{n}–{m} 秒", voicesPearl: "钢琴和弦，约每 {n} 秒", voicesLoops: "磁带循环 · 磨损 {n}%", style: "风格", styleEol: "风弦", styleTape: "磁带", voicesTape: "铺底 · 磁带 · 动机 {n} BPM", nightDesc: "夜晚 · 平静，柔和滤波", dayDesc: "白天 · 明亮，泛音" },
+  ja: { character: "キャラクター", foot: "天気：Open-Meteo（APIキー不要）。都市名：BigDataCloud。座標は天気と地名を取得するために、この2つのサービスにのみ送信されます。音はブラウザ内で合成され、録音されません。", anim: "アニメーション", animFull: "フル", animCalm: "控えめ", settings: "設定", close: "閉じる", more: "詳細", less: "閉じる", snowDesc: "雪 · やわらかな静けさ", styleAir: "空港", stylePearl: "パール", styleLoops: "ループ", voicesAir: "7つの位相ループ、{n}–{m}秒", voicesPearl: "ピアノの和音、約{n}秒ごと", voicesLoops: "テープループ · 劣化 {n}%", style: "スタイル", styleEol: "エオリアン", styleTape: "テープ", voicesTape: "パッド · テープ · モチーフ {n} BPM", nightDesc: "夜 · 穏やか、柔らかいフィルター", dayDesc: "昼 · 明るく、倍音" },
+  ko: { character: "캐릭터", foot: "날씨: Open-Meteo, API 키 불필요. 도시 이름: BigDataCloud. 좌표는 날씨와 지명을 가져오기 위해 이 두 서비스에만 전송됩니다. 소리는 브라우저에서 합성되며 녹음되지 않습니다.", anim: "애니메이션", animFull: "전체", animCalm: "차분", settings: "설정", close: "닫기", more: "더보기", less: "접기", snowDesc: "눈 · 부드러운 고요", styleAir: "공항", stylePearl: "진주", styleLoops: "루프", voicesAir: "위상 루프 7개, {n}–{m}초", voicesPearl: "피아노 화음, 약 {n}초마다", voicesLoops: "테이프 루프 · 마모 {n}%", style: "스타일", styleEol: "에올리안", styleTape: "테이프", voicesTape: "패드 · 테이프 · 모티프 {n} BPM", nightDesc: "밤 · 차분하게, 부드러운 필터", dayDesc: "낮 · 밝게, 배음" },
+  cs: { character: "Charakter", foot: "Počasí: Open-Meteo, bez API klíče. Název města: BigDataCloud. Souřadnice se posílají jen těmto dvěma službám, aby se zjistilo počasí a název místa. Zvuk se syntetizuje v prohlížeči a nikdy se nenahrává.", anim: "Animace", animFull: "Plná", animCalm: "Klidná", settings: "Nastavení", close: "Zavřít", more: "Více", less: "Méně", snowDesc: "sníh · tlumený šum", styleAir: "Letiště", stylePearl: "Perla", styleLoops: "Smyčky", voicesAir: "7 fázových smyček, {n}–{m} s", voicesPearl: "klavírní akordy každých ~{n} s", voicesLoops: "smyčka · opotřebení {n} %", style: "Styl", styleEol: "Eol", styleTape: "Páska", voicesTape: "pady · páska · motiv {n} BPM", nightDesc: "noc · klid, měkký filtr", dayDesc: "den · světlo, harmonické" }
+};
+for (const l in EXTRA) Object.assign(STR[l], EXTRA[l], EXTRA2[l]);
+let lang = 'en', noteKey = 'startNote';
+const t = (k, v) => {
+  let s = (STR[lang] && STR[lang][k] !== undefined) ? STR[lang][k] : STR.en[k];
+  if (typeof s === 'string' && v) for (const x in v) s = s.replace('{' + x + '}', v[x]);
+  return s;
+};
+function setNote(k) { noteKey = k; $('note').textContent = t(k); }
+
+/* ---------- weather state (sample: Brno) ---------- */
+// character macro: -1 darker / heavier ... +1 brighter / lighter, applied on top of the weather
+let CHAR = 0;
+// engine style: 'tape' = looped chords, music-box motif, wow & flutter, saturation, echo; 'eol' = free Aeolian drone
+// per-style mix: drone/sub/air = bed levels, saw = pad grit, tape = saturation + hiss, wow = pitch wobble (cents), echo = send, wet = extra reverb
+const STYLES = {
+  eol:     { drone: 1,    sub: 1,    air: 1,    saw: 0,   tape: 0,    wow: 0,  echo: 0,    wet: 0 },
+  tape:    { drone: 1,    sub: 1,    air: 1,    saw: 1,   tape: 1,    wow: 9,  echo: 0.55, wet: 0 },
+  airport: { drone: 0.3,  sub: 0.5,  air: 0.4,  saw: 0,   tape: 0.15, wow: 2,  echo: 0.3,  wet: 0.08 },  // Eno, Music for Airports
+  pearl:   { drone: 0.22, sub: 0.45, air: 0.3,  saw: 0,   tape: 0.25, wow: 3,  echo: 0.4,  wet: 0.14 },  // Budd & Eno, The Pearl
+  loops:   { drone: 0.4,  sub: 0.6,  air: 0.15, saw: 0.6, tape: 1,    wow: 14, echo: 0.2,  wet: 0.05 }   // Basinski, Disintegration Loops
+};
+let STYLE = 'tape';
+try { const st = localStorage.getItem('wd-style'); if (STYLES[st]) STYLE = st; } catch (e) { /* optional */ }
+// tape style: four-chord loops, voices = [bass, 5th, 3 colour tones] in semitones from the key root
+const PROGS = {
+  day:   [[0, 7, 14, 16, 19], [-7, 0, 9, 12, 16], [-3, 4, 7, 12, 16], [-5, 2, 7, 12, 14]],   // I – IVmaj7 – vi7 – Vsus
+  grey:  [[0, 7, 12, 14, 17], [-2, 5, 12, 14, 17], [-5, 2, 7, 14, 17], [-7, 0, 7, 14, 17]],  // floating sus chords
+  night: [[0, 7, 11, 14, 19], [2, 9, 14, 18, 21], [-3, 4, 11, 14, 16], [-7, 0, 7, 11, 16]]   // maj9 – lydian II – vi9 – IVmaj7
+};
+const PROG_LABEL = { day: 'I–IV–vi–V', grey: 'sus · I–♭VII–V–IV', night: 'maj9 · I–II–vi–IV' };
+const SAWK = [1, 1, 1, 1, 1, 0, 0.4, 0.4];
+const SAW_MIX = 0.1;   // how much saw each drone voice gets in tape style
+try { const c = parseInt(localStorage.getItem('wd-char'), 10); if (c >= -100 && c <= 100) CHAR = c / 100; } catch (e) { /* optional */ }
+/* ---------- sun & sky ---------- */
+const BRNO = { lat: 49.195, lon: 16.607 };
+// sunrise / sunset in local minutes (NOAA approximation), for the sample city in the device time zone
+function sunTimes(date, lat, lon) {
+  const rad = Math.PI / 180;
+  const day = Math.floor((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(date.getFullYear(), 0, 0)) / 864e5);
+  const g = 2 * Math.PI / 365 * (day - 1);
+  const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const ha = Math.acos(clamp(Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(decl)) - Math.tan(lat * rad) * Math.tan(decl), -1, 1)) / rad;
+  const noon = 720 - 4 * lon - eqt - date.getTimezoneOffset();
+  return { sr: noon - 4 * ha, ss: noon + 4 * ha };
+}
+// sun: 0 on the horizon, +1 at noon, -1 at midnight; rising = morning half
+function sunAt(min, tm) {
+  const m = ((min % 1440) + 1440) % 1440, D = tm.ss - tm.sr;
+  if (m >= tm.sr && m <= tm.ss) return { sun: Math.sin(Math.PI * (m - tm.sr) / D), rising: m < tm.sr + D / 2, p: (m - tm.sr) / D };
+  const N = 1440 - D, tn = ((m - tm.ss) % 1440 + 1440) % 1440;
+  return { sun: -Math.sin(Math.PI * tn / N), rising: tn > N / 2, p: tn / N };
+}
+const deviceMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; };
+const manualSun = () => sunAt(deviceMin(), sunTimes(new Date(), BRNO.lat, BRNO.lon));
+
+const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+const mixC = (a, b, f) => '#' + hex(a).map((v, i) => Math.round(v + (hex(b)[i] - v) * clamp(f, 0, 1)).toString(16).padStart(2, '0')).join('');
+const mixP = (a, b, f) => { const o = {}; for (const k in a) o[k] = mixC(a[k], b[k], f); return o; };
+// sky1 = zenith, sky2 = mid sky, sky3 = horizon, glow = sun / moon light
+const SKY = {
+  night: { bg: '#0f1315', panel: '#161b1e', line: '#252e33', fg: '#e4eaec', dim: '#7d8d94', accent: '#8f9bff', sky1: '#070b14', sky2: '#0c1118', sky3: '#11181d', glow: '#3b4c80' },
+  dawn:  { bg: '#1e1b26', panel: '#262231', line: '#3d3448', fg: '#ece6ef', dim: '#a497b0', accent: '#ffb38a', sky1: '#161a33', sky2: '#33263f', sky3: '#6a3a4c', glow: '#ff9a6b' },
+  dusk:  { bg: '#251b1d', panel: '#2e2225', line: '#463434', fg: '#f1e7e3', dim: '#b09a93', accent: '#ff9d68', sky1: '#1a1530', sky2: '#371d2b', sky3: '#682e28', glow: '#ff7a3d' },
+  morn:  { bg: '#f6ead9', panel: '#efe1cd', line: '#e0cfba', fg: '#2b2420', dim: '#6f6155', accent: '#c4652e', sky1: '#e9dbe6', sky2: '#f5e3d6', sky3: '#f9e6cf', glow: '#ffc58f' },
+  eve:   { bg: '#f3e2c8', panel: '#ecd8ba', line: '#dcc5a2', fg: '#2d2219', dim: '#6e5946', accent: '#b8521c', sky1: '#e6d6e2', sky2: '#f3dcc0', sky3: '#f4c796', glow: '#ffad5c' },
+  day:   { bg: '#f4efe4', panel: '#ece6d9', line: '#dbd3c2', fg: '#23272a', dim: '#646a70', accent: '#2a7fc0', sky1: '#cde2f1', sky2: '#e7edee', sky3: '#f4efe4', glow: '#fff1c9' },
+  grey:  { bg: '#e7e5e0', panel: '#dfdcd5', line: '#d1cec6', fg: '#23272a', dim: '#63676b', accent: '#5f7689', sky1: '#d6dce1', sky2: '#e2e3e2', sky3: '#e7e5e0', glow: '#f3f3ef' }
+};
+// dark sky below the horizon (night <-> dawn / dusk), cream sky above it (low warm sun <-> high cream day)
+function skyPalette(sun, rising) {
+  if (sun <= 0.06) return { light: false, pal: mixP(rising ? SKY.dawn : SKY.dusk, SKY.night, -sun / 0.35) };
+  const day = mixP(SKY.day, SKY.grey, W.cloud / 100 * 0.7);
+  day.accent = W.precip > 0.05 ? '#17867a' : W.cloud > 70 ? SKY.grey.accent : SKY.day.accent;
+  const pal = mixP(rising ? SKY.morn : SKY.eve, day, (sun - 0.06) / 0.44);
+  // storms turn the daytime sky to lead, plain rain greys it a little
+  const b = bft(W.wind), wet = W.precip > 0.05;
+  const sm = b >= 8 && (W.cloud > 55 || wet) ? clamp((b - 7) / 5, 0.2, 1) * 0.8 : wet ? 0.3 : 0;
+  if (sm) {
+    pal.sky1 = mixC(pal.sky1, '#7c8792', sm); pal.sky2 = mixC(pal.sky2, '#a6acb2', sm);
+    pal.sky3 = mixC(pal.sky3, '#c8cac7', sm * 0.6); pal.glow = mixC(pal.glow, '#c4c9ce', sm);
+  }
+  return { light: true, pal };
+}
+
+const h0 = new Date().getHours();
+const SAMPLE_COORDS = '49.20° N · 16.61° E';
+const W = { temp: 7, wind: 14, precip: 0.6, cloud: 80, hum: 82, press: 1014, night: manualSun().sun < 0, sunFix: null, sunTimes: null, tzOff: 0, place: null, coords: SAMPLE_COORDS, live: false, hourly: null };
+let P = derive(W);
+let coords = null, refreshTimer = null, liveBusy = false;
+let RP = null, replayMin = 10;   // day replay state
+
+/* weather -> musical parameters */
+function derive(w) {
+  const tN = clamp((w.temp + 10) / 45, 0, 1);
+  const windN = clamp(w.wind / 50, 0, 1);
+  const humN = w.hum / 100, clear = 1 - w.cloud / 100;
+  const lowP = clamp((1025 - w.press) / 45, 0, 1);
+  const overcast = w.precip > 0.2 || w.cloud > 70;
+  // temperature: register of the whole drone; night drops it further
+  // temperature sets the register; the whole drone sits a little higher for a lighter sound
+  const rootMidi = 43 + Math.round(tN * 8);
+  let mode;
+  if (w.night) mode = overcast ? 'Suspended pentatonic' : 'Egyptian pentatonic';
+  else mode = overcast ? 'Suspended pentatonic' : 'Major pentatonic';
+  // day: bright and open; night: softer, but never dark
+  let cutoff = (700 + tN * 1500) * (1 - w.cloud / 100 * 0.2) * (1 + windN * 0.2);
+  if (w.night) cutoff *= 0.7;
+  const rain = w.precip <= 0.05 ? 0 : clamp(0.2 + w.precip / 5, 0, 1);
+  const snow = rain > 0 && w.temp <= 0.5;   // snow: no drops, a soft muffled hush
+  if (snow) cutoff *= 0.85;
+  return applyChar({
+    rootMidi, mode, windN, rain, snow, night: w.night,
+    bft: bft(w.wind),
+    prog: w.night ? 'night' : overcast ? 'grey' : 'day',
+    bpm: (56 + tN * 16 + windN * 8) * (w.night ? 0.85 : 1),                // tape loop tempo
+    motifDensity: clamp(0.3 + clear * 0.3 + humN * 0.1 - (w.night ? 0.12 : 0), 0.15, 0.75),
+    loopScale: (1 + lowP * 0.3 - windN * 0.25) * (w.night ? 1.25 : 1),     // airport: loop lengths
+    enoDensity: clamp(0.55 + clear * 0.35 - rain * 0.2, 0.3, 1),           // airport: chance a loop sounds
+    loopLife: Math.round(clamp(48 - humN * 24 - rain * 10, 12, 48)),        // loops: repeats until it dissolves
+    cutoff: clamp(cutoff, 320, 3000),
+    swing: 0.1 + windN * 0.4,                                        // wind: how far the filter wanders
+    wet: clamp(0.42 + humN * 0.28 + rain * 0.08 + (w.night ? 0.12 : 0), 0, 0.85), // humidity: size of the room
+    detune: 3 + humN * 6,                                            // humidity: chorus width
+    breathRate: (0.04 + (1 - lowP) * 0.05) * (w.night ? 0.7 : 1),    // pressure: breath speed; night breathes slower
+    breathDepth: 0.12 + windN * 0.28,                                // wind: breath depth
+    subLevel: Math.min(1, (w.night ? 0.55 : 0.3) + lowP * 0.25),     // low pressure / night: gentle weight underneath
+    subCut: w.night ? 130 : 170 + tN * 60,
+    airLevel: w.night ? 0.12 + clear * 0.33 : 0.45 + clear * 0.55,  // day: bright harmonics; clear night: soft starlight
+    aeol: clamp((w.wind - 6) / 40, 0, 1),                            // wind on the Aeolian strings
+    swellRate: (0.05 + windN * 0.1 + humN * 0.05) * (w.night ? 0.6 : 1),
+    dropRate: rain && !snow ? 3 + rain * 40 : 0
+  });
+}
+function applyChar(o) {
+  const c = CHAR;
+  o.cutoff = clamp(o.cutoff * Math.pow(2, c * 0.9), 250, 3600);
+  o.airLevel = clamp(o.airLevel + c * 0.35, 0, 1);
+  o.subLevel = clamp(o.subLevel - c * 0.25, 0.1, 1);
+  o.subCut *= 1 + Math.max(0, c) * 0.3;
+  o.wet = clamp(o.wet - c * 0.08, 0, 0.85);
+  o.swellRate *= 1 + c * 0.25;
+  return o;
+}
+
+/* ---------- audio engine: Aeolian drone ---------- */
+let S = null, wakeLock = null;
+let vol = 85, sleepMin = 0, sleepEnd = null, silentEl = null;
+const volGain = () => Math.pow(vol / 100, 2) * 1.3;
+
+function makeIR(c, sec) {
+  const rate = c.sampleRate, len = Math.floor(rate * sec), buf = c.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch); let lp = 0;
+    for (let i = 0; i < len; i++) {
+      const x = i / len;
+      lp += ((Math.random() * 2 - 1) - lp) * (0.3 * (1 - x) + 0.05);
+      d[i] = lp * Math.pow(1 - x, 2.6) * (i < rate * 0.02 ? i / (rate * 0.02) : 1);
+    }
+  }
+  return buf;
+}
+function makePink(c, sec) {
+  const len = Math.floor(c.sampleRate * sec), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < len; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
+    b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
+    d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
+  }
+  const f = 1024;
+  for (let i = 0; i < f; i++) { const k = i / f; d[i] *= k; d[len - 1 - i] *= k; }
+  return buf;
+}
+function makeWhite(c, sec) {
+  const len = Math.floor(c.sampleRate * sec), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+function loopNoise(c, buf) {
+  const s = c.createBufferSource(); s.buffer = buf; s.loop = true;
+  s.start(0, rand(0, buf.duration - 0.5));
+  return s;
+}
+const panner = (c, v) => { if (!c.createStereoPanner) return null; const p = c.createStereoPanner(); p.pan.value = v; return p; };
+
+/* one drone voice: two detuned triangles, slow detune drift, slow independent swell */
+function makeVoice(c, freq, level, sink, pan, wow, sawMix) {
+  const out = c.createGain(); out.gain.value = level;
+  const oscs = [-1, 1].map(s => {
+    const o = c.createOscillator(); o.type = 'triangle';
+    o.frequency.value = freq; o.detune.value = s * P.detune; o.connect(out); return o;
+  });
+  const saw = c.createOscillator(); saw.type = 'sawtooth'; saw.frequency.value = freq;
+  const sg = c.createGain(); sg.gain.value = sawMix || 0; saw.connect(sg); sg.connect(out); oscs.push(saw);
+  if (wow) oscs.forEach(o => wow.connect(o.detune));
+  const drift = c.createOscillator(); drift.frequency.value = rand(0.02, 0.06);
+  const dA = c.createGain(), dB = c.createGain(); dA.gain.value = rand(1.5, 4); dB.gain.value = -dA.gain.value;
+  drift.connect(dA); dA.connect(oscs[0].detune); drift.connect(dB); dB.connect(oscs[1].detune);
+  const sw = c.createOscillator(); sw.frequency.value = rand(0.012, 0.04);
+  const swd = c.createGain(); swd.gain.value = level * 0.45; sw.connect(swd); swd.connect(out.gain);
+  const p = panner(c, pan);
+  if (p) { out.connect(p); p.connect(sink); } else out.connect(sink);
+  [...oscs, drift, sw].forEach(o => o.start());
+  return { oscs, sg };
+}
+
+/* voicing indices: 0 root, 1 fifth, 2 octave, 3-4 colour, 5 sub-octave, 6-7 transparent harmonics.
+   Colour notes come from the pentatonic palette and stay >=3 semitones from each other, so nothing rubs. */
+const LV  = [0.13, 0.08, 0.05, 0.05, 0.04, 0.2, 0.035, 0.022];
+const PAN = [0, 0.12, -0.2, -0.5, 0.5, 0, 0.35, -0.35];
+function pickColor(sc, taken, lo, hi) {
+  const c = [];
+  for (const d of sc) for (const o of [12, 24]) { const off = d + o; if (off >= lo && off <= hi && taken.every(e => Math.abs(off - e) >= 3)) c.push(off); }
+  return c.length ? pick(c) : null;
+}
+function newChord() {
+  const sc = SCALES[P.mode];
+  const c1 = pickColor(sc, [0, 7, 12], 14, 24) || 16;
+  const c2 = pickColor(sc, [0, 7, 12, c1], 17, 31) || 19;
+  return [0, 7, 12, c1, c2, -12, 24 + pick(sc), 36 + pick([0, 7])];
+}
+const strOffs = () => [12, 19, 24, 24 + SCALES[P.mode][2]];
+function glide(i, tc, when) {
+  const f = mtof(P.rootMidi + S.offs[i]), now = when || S.ctx.currentTime;
+  S.voices[i].oscs.forEach(o => o.frequency.setTargetAtTime(f, now, tc));
+}
+function retune(tc) {
+  S.offs.forEach((_, i) => glide(i, tc));
+  const so = strOffs(), now = S.ctx.currentTime;
+  S.strings.forEach((s, i) => s.bp.frequency.setTargetAtTime(mtof(P.rootMidi + so[i]), now, tc));
+}
+function evolveChord() {
+  const sc = SCALES[P.mode], i = pick([3, 4, 6, 7]);
+  if (i === 6) S.offs[6] = 24 + pick(sc);
+  else if (i === 7) S.offs[7] = 36 + pick([0, 7]);
+  else {
+    const n = pickColor(sc, S.offs.slice(0, 5).filter((_, k) => k !== i), 14, 31);
+    if (n == null) return;
+    S.offs[i] = n;
+  }
+  glide(i, rand(3, 6));   // slow glissando into the new note
+}
+
+function requestWake() {
+  try {
+    if (wakeLock || !navigator.wakeLock) return;
+    navigator.wakeLock.request('screen').then(l => { wakeLock = l; l.addEventListener('release', () => { wakeLock = null; }); }).catch(() => {});
+  } catch (e) { /* optional */ }
+}
+function releaseWake() { try { wakeLock && wakeLock.release(); } catch (e) { /* optional */ } wakeLock = null; }
+
+function startAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* iOS ringer switch */ }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) { setNote('noAudio'); return; }
+  const c = new AC();
+  c.onstatechange = () => { if (S && S.ctx === c && c.state !== 'running' && c.state !== 'closed' && !document.hidden) c.resume().catch(() => {}); };
+  if (c.resume) c.resume();
+
+  const master = c.createGain(); master.gain.value = 0;
+  const comp = c.createDynamicsCompressor();
+  comp.threshold.value = -20; comp.knee.value = 24; comp.ratio.value = 3; comp.attack.value = 0.02; comp.release.value = 0.35;
+  const volNode = c.createGain(); volNode.gain.value = volGain();
+  const cf = STYLES[STYLE], tapeOn = cf.tape;
+  // tape stage: clean / saturated crossfade -> gentle top roll-off -> compressor
+  const tone = c.createBiquadFilter(); tone.type = 'lowpass'; tone.Q.value = 0.5; tone.frequency.value = 18000 - 10500 * tapeOn;
+  const clean = c.createGain(), satG = c.createGain(), shaper = c.createWaveShaper();
+  shaper.curve = tapeCurve(); shaper.oversample = '2x';
+  clean.gain.value = 1 - tapeOn; satG.gain.value = tapeOn;
+  master.connect(clean); clean.connect(tone); master.connect(shaper); shaper.connect(satG); satG.connect(tone);
+  tone.connect(comp); comp.connect(volNode); volNode.connect(c.destination);
+  const dryBus = c.createGain(); dryBus.connect(master);
+  const revIn = c.createGain(), conv = c.createConvolver(), revOut = c.createGain();
+  conv.buffer = makeIR(c, 8); revOut.gain.value = P.wet;
+  revIn.connect(conv); conv.connect(revOut); revOut.connect(master);
+  const route = (node, dry, wet) => {
+    const d = c.createGain(); d.gain.value = dry; node.connect(d); d.connect(dryBus);
+    const w = c.createGain(); w.gain.value = wet; node.connect(w); w.connect(revIn);
+  };
+  const pink = makePink(c, 8), white = makeWhite(c, 2);
+
+  // tape hiss
+  const thSrc = loopNoise(c, white);
+  const thHP = c.createBiquadFilter(); thHP.type = 'highpass'; thHP.frequency.value = 2500;
+  const thLP = c.createBiquadFilter(); thLP.type = 'lowpass'; thLP.frequency.value = 9000;
+  const tHiss = c.createGain(); tHiss.gain.value = 0.004 * tapeOn;
+  thSrc.connect(thHP); thHP.connect(thLP); thLP.connect(tHiss); tHiss.connect(tone);
+  // wow (slow) + flutter (fast) pitch wobble shared by every tonal voice, in cents
+  const wowOut = c.createGain();
+  const wowL = c.createOscillator(); wowL.frequency.value = 0.42;
+  const wowD = c.createGain(); wowD.gain.value = cf.wow; wowL.connect(wowD); wowD.connect(wowOut);
+  const flL = c.createOscillator(); flL.frequency.value = 5.7;
+  const flD = c.createGain(); flD.gain.value = 2.5 * tapeOn; flL.connect(flD); flD.connect(wowOut);
+  wowL.start(); flL.start();
+  // motif bus with a dark ping-pong tape echo
+  const motifBus = c.createGain(); route(motifBus, 0.5, 0.75);
+  const dSend = c.createGain(); dSend.gain.value = cf.echo; motifBus.connect(dSend);
+  const dL = c.createDelay(4), dR = c.createDelay(4), dLP = c.createBiquadFilter(), fb = c.createGain(), merge = c.createChannelMerger(2), dOut = c.createGain();
+  const echo = 60 / P.bpm * 0.75; dL.delayTime.value = echo; dR.delayTime.value = echo;
+  dLP.type = 'lowpass'; dLP.frequency.value = 2200; fb.gain.value = 0.42; dOut.gain.value = 0.8;
+  dSend.connect(dL); dL.connect(merge, 0, 0); dL.connect(dR); dR.connect(merge, 0, 1); dR.connect(dLP); dLP.connect(fb); fb.connect(dL);
+  merge.connect(dOut); route(dOut, 0.6, 0.5);
+
+  // core drone -> soft low-pass -> breathing gain
+  const padSum = c.createGain();
+  const padFilter = c.createBiquadFilter(); padFilter.type = 'lowpass'; padFilter.Q.value = 0.4; padFilter.frequency.value = P.cutoff;
+  const breath = c.createGain(); breath.gain.value = 1 - P.breathDepth * 0.5;
+  const breathLfo = c.createOscillator(); breathLfo.frequency.value = P.breathRate;
+  const breathDepth = c.createGain(); breathDepth.gain.value = P.breathDepth * 0.5;
+  breathLfo.connect(breathDepth); breathDepth.connect(breath.gain); breathLfo.start();
+  const droneG = c.createGain(); droneG.gain.value = cf.drone;
+  padSum.connect(padFilter); padFilter.connect(droneG); droneG.connect(breath); route(breath, 0.8, 0.55);
+  // sub-octave: its own dark low-pass, almost no reverb (keeps the low end clean)
+  const subLP = c.createBiquadFilter(); subLP.type = 'lowpass'; subLP.Q.value = 0.5; subLP.frequency.value = P.subCut;
+  const subCtl = c.createGain(); subCtl.gain.value = P.subLevel;
+  subLP.connect(subCtl); route(subCtl, 0.9, 0.12);
+  // transparent harmonics: high triangles, mostly reverb
+  const airHP = c.createBiquadFilter(); airHP.type = 'highpass'; airHP.frequency.value = 380;
+  const airCtl = c.createGain(); airCtl.gain.value = P.airLevel;
+  airHP.connect(airCtl); route(airCtl, 0.3, 0.9);
+
+  // swell + drop buses
+  const swellBus = c.createGain(); route(swellBus, 0.35, 0.85);
+  const dropBus = c.createGain(); route(dropBus, 0.55, 0.3);
+
+  // rain hiss: band-limited pink noise
+  const hissSrc = loopNoise(c, pink);
+  const hissHP = c.createBiquadFilter(); hissHP.type = 'highpass'; hissHP.frequency.value = 1500;
+  const hissLP = c.createBiquadFilter(); hissLP.type = 'lowpass'; hissLP.frequency.value = 7000;
+  const hiss = c.createGain(); hiss.gain.value = 0;
+  hissSrc.connect(hissHP); hissHP.connect(hissLP); hissLP.connect(hiss); route(hiss, 0.6, 0.35);
+
+  // wind: two independent gusting bands (L/R) + a whistle that appears from Bft 6
+  const windBus = c.createGain(); route(windBus, 0.55, 0.45);
+  const wind = [-0.7, 0.7].map(pn => {
+    const src = loopNoise(c, pink);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 220; bp.Q.value = 0.7;
+    const g = c.createGain(); g.gain.value = 0;
+    src.connect(bp); bp.connect(g);
+    const p = panner(c, pn); if (p) { g.connect(p); p.connect(windBus); } else g.connect(windBus);
+    return { bp, g };
+  });
+  const whSrc = loopNoise(c, pink);
+  const whBP = c.createBiquadFilter(); whBP.type = 'bandpass'; whBP.frequency.value = 900; whBP.Q.value = 6;
+  const whG = c.createGain(); whG.gain.value = 0;
+  whSrc.connect(whBP); whBP.connect(whG); whG.connect(windBus);
+
+  // Aeolian strings: wind noise exciting narrow resonances tuned to the chord
+  const stringBus = c.createGain(); route(stringBus, 0.25, 0.9);
+  const strSrc = loopNoise(c, pink), so = strOffs();
+  const strings = so.map((o, i) => {
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 32; bp.frequency.value = mtof(P.rootMidi + o);
+    const g = c.createGain(); g.gain.value = 0;
+    strSrc.connect(bp); bp.connect(g);
+    const p = panner(c, [-0.6, 0.6, -0.25, 0.25][i]); if (p) { g.connect(p); p.connect(stringBus); } else g.connect(stringBus);
+    return { bp, g };
+  });
+
+  S = { ctx: c, master, vol: volNode, padFilter, revOut, breath, breathLfo, breathDepth, subLP, subCtl, airCtl,
+        swellBus, dropBus, white, pink, hiss, wind, whistle: { bp: whBP, g: whG }, strings,
+        tone, clean, satG, tHiss, wowD, flD, wowOut, motifBus, dSend, dL, dR,
+        prog: P.prog, chordIdx: 0, stepN: 0, nextStep: c.currentTime + 1.5, motif: newMotif(), droneG,
+        eno: makeEno(c.currentTime), pearlNext: c.currentTime + 1, loop: Object.assign(newLoop(), { next: c.currentTime + 1 }),
+        voices: [], offs: usesProg() ? tapeChord(0) : newChord(), mode: P.mode, root: P.rootMidi, curCut: P.cutoff, lastSwell: null,
+        nextSwell: c.currentTime + 2, nextDrop: c.currentTime + 0.5 };
+  const sinkFor = i => i <= 4 ? padSum : i === 5 ? subLP : airHP;
+  S.offs.forEach((o, i) => S.voices.push(makeVoice(c, mtof(P.rootMidi + o), LV[i], sinkFor(i), PAN[i], wowOut, SAW_MIX * SAWK[i] * cf.saw)));
+  applyStyle(0.05);
+  master.gain.setTargetAtTime(0.6, c.currentTime, 3);   // long attack
+  armSleep(true); keepAlive(true); setupMedia(); requestWake();
+
+  const moveFilter = () => {
+    if (!S || S.ctx !== c) return;
+    const f = clamp(P.cutoff * Math.pow(2, rand(-1, 1) * P.swing), 260, 3400);
+    S.padFilter.frequency.setTargetAtTime(f, c.currentTime, rand(3, 5));
+    S.curCut = f; renderScore();
+    S.filterTimer = setTimeout(moveFilter, rand(6000, 12000));
+  };
+  const nextChord = () => {
+    S.chordTimer = setTimeout(() => { if (!S || S.ctx !== c) return; if (!usesProg()) evolveChord(); nextChord(); }, rand(14000, 26000));
+  };
+  moveFilter(); nextChord();
+  S.tickId = setInterval(tick, 100);
+}
+
+function stopAudio() {
+  const s = S; if (!s) return;
+  S = null; sleepEnd = null; keepAlive(false);
+  if (RP) stopReplay();
+  clearInterval(s.tickId); clearTimeout(s.filterTimer); clearTimeout(s.chordTimer);
+  const g = s.master.gain, now = s.ctx.currentTime;
+  g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.setTargetAtTime(0, now, 1.2);   // long release
+  setTimeout(() => { s.ctx.close().catch(() => {}); }, 7000);
+  if (!ambOn) releaseWake();
+}
+
+function applyAudio() {
+  if (!S) return;
+  const now = S.ctx.currentTime;
+  const cf = STYLES[STYLE];
+  S.revOut.gain.setTargetAtTime(Math.min(0.95, P.wet + cf.wet), now, 3);
+  S.padFilter.frequency.setTargetAtTime(P.cutoff, now, 3); S.curCut = P.cutoff;
+  S.voices.forEach(v => { v.oscs[0].detune.setTargetAtTime(-P.detune, now, 3); v.oscs[1].detune.setTargetAtTime(P.detune, now, 3); });
+  S.breath.gain.setTargetAtTime(1 - P.breathDepth * 0.5, now, 3);
+  S.breathDepth.gain.setTargetAtTime(P.breathDepth * 0.5, now, 3);
+  S.breathLfo.frequency.setTargetAtTime(P.breathRate, now, 3);
+  S.subCtl.gain.setTargetAtTime(P.subLevel * cf.sub, now, 3);
+  S.subLP.frequency.setTargetAtTime(P.subCut, now, 3);
+  S.airCtl.gain.setTargetAtTime(P.airLevel * cf.air, now, 4);
+  const echo = 60 / P.bpm * 0.75;
+  S.dL.delayTime.setTargetAtTime(echo, now, 2); S.dR.delayTime.setTargetAtTime(echo, now, 2);
+  if (usesProg()) {
+    if (S.prog !== P.prog) { S.prog = P.prog; S.mode = P.mode; S.root = P.rootMidi; S.offs = tapeChord(S.chordIdx); retune(4); }
+    else if (S.mode !== P.mode || S.root !== P.rootMidi) { S.mode = P.mode; S.root = P.rootMidi; retune(3); }
+  } else if (S.mode !== P.mode) { S.mode = P.mode; S.root = P.rootMidi; S.offs = newChord(); retune(5); }
+  else if (S.root !== P.rootMidi) { S.root = P.rootMidi; retune(3); }
+}
+
+/* swell: a soft triangle pad note with a long attack and release that glides in from the previous swell */
+function swell(at) {
+  const c = S.ctx, sc = SCALES[P.mode];
+  const midi = P.rootMidi + pick(sc) + pick(P.night ? [12, 12, 24] : [12, 24, 24]);
+  const from = S.lastSwell == null ? midi : S.lastSwell; S.lastSwell = midi;
+  const att = rand(3, 6), rel = rand(6, 10), peak = rand(0.018, 0.035) * (P.night ? 0.8 : 1);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.3; lp.frequency.value = Math.min(3000, P.cutoff * 1.4);
+  const g = c.createGain(); g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(peak, at + att);
+  g.gain.setTargetAtTime(0, at + att, rel / 4);
+  const p = panner(c, rand(-0.7, 0.7));
+  lp.connect(g); if (p) { g.connect(p); p.connect(S.swellBus); } else g.connect(S.swellBus);
+  const end = at + att + rel * 1.6;
+  const os = [-1, 1].map(s => {
+    const o = c.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(mtof(from), at); o.frequency.setTargetAtTime(mtof(midi), at, att * 0.4);
+    o.detune.value = s * rand(3, 7);
+    o.connect(lp); o.start(at); o.stop(end);
+    return o;
+  });
+  os[0].onended = () => { os.forEach(o => o.disconnect()); lp.disconnect(); g.disconnect(); if (p) p.disconnect(); };
+}
+
+/* ---------- tape style ---------- */
+function tapeCurve() {
+  // unity gain for quiet signals, soft rounding of peaks (no hidden level boost)
+  const n = 2048, k = 2.2, cv = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; cv[i] = Math.tanh(k * x) / k; }
+  return cv;
+}
+function tapeChord(i) {
+  const ch = PROGS[P.prog][((i % 4) + 4) % 4];
+  return [...ch, ch[0] - 12, ch[3] + 12, ch[4] + 12];
+}
+// an 8-step motif over chord tones (index into the 5 chord voices), null = rest
+function newMotif() {
+  const pat = [];
+  for (let i = 0; i < 8; i++) pat.push(Math.random() < P.motifDensity ? pick([2, 3, 4, 3, 4]) : null);
+  if (pat.filter(v => v != null).length < 2) { pat[0] = 4; pat[4] = 3; }
+  return pat;
+}
+function mutateMotif() { S.motif[Math.floor(Math.random() * 8)] = Math.random() < P.motifDensity ? pick([1, 2, 3, 4]) : null; }
+/* music-box mallet: soft triangle body + a short inharmonic glint, wobbling with the tape */
+function mallet(at, midi, vel) {
+  const c = S.ctx, f = mtof(midi);
+  const g = c.createGain(); g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(vel, at + 0.008); g.gain.setTargetAtTime(0, at + 0.008, 0.45);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.3; lp.frequency.value = Math.min(6000, P.cutoff * 3);
+  const o1 = c.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f;
+  const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 3.01;
+  const g2 = c.createGain(); g2.gain.setValueAtTime(0.35, at); g2.gain.setTargetAtTime(0, at, 0.08);
+  S.wowOut.connect(o1.detune); S.wowOut.connect(o2.detune);
+  o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g);
+  const p = panner(c, rand(-0.5, 0.5)); if (p) { g.connect(p); p.connect(S.motifBus); } else g.connect(S.motifBus);
+  o1.start(at); o2.start(at); o1.stop(at + 3.5); o2.stop(at + 3.5);
+  o1.onended = () => { try { S && S.wowOut.disconnect(o1.detune); S && S.wowOut.disconnect(o2.detune); } catch (e) { /* gone */ } o1.disconnect(); o2.disconnect(); g2.disconnect(); lp.disconnect(); g.disconnect(); if (p) p.disconnect(); };
+}
+function motifStep(at) {
+  const v = S.motif[S.stepN % 8];
+  if (v == null) return;
+  let midi = P.rootMidi + S.offs[v] + 12;
+  while (midi > 84) midi -= 12;
+  while (midi < 64) midi += 12;
+  mallet(at, midi, 0.045 * rand(0.7, 1) * (P.night ? 0.75 : 1));
+}
+// steps run on the audio clock; every 8 steps the loop moves to the next chord with a short glide
+function tapeSteps(now) {
+  if (S.nextStep < now) S.nextStep = now + 0.05;
+  while (S.nextStep < now + 0.3) {
+    const at = S.nextStep, step = 60 / P.bpm;
+    if (S.stepN > 0 && S.stepN % 8 === 0) {
+      S.chordIdx++; S.offs = tapeChord(S.chordIdx);
+      S.offs.forEach((_, i) => glide(i, step * 0.45, at));
+      if (S.chordIdx % 4 === 0) mutateMotif();
+    }
+    motifStep(at);
+    S.stepN++; S.nextStep += step;
+  }
+}
+const usesProg = () => STYLE === 'tape' || STYLE === 'pearl';
+
+/* soft piano: triangle body + quickly fading upper partials, felt-like low-pass that closes after the hammer */
+function piano(at, midi, vel, dec, bus) {
+  const c = S.ctx, f = mtof(midi), wow = S.wowOut;
+  const g = c.createGain(); g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(vel, at + 0.012); g.gain.setTargetAtTime(0, at + 0.012, dec / 4);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.2;
+  lp.frequency.setValueAtTime(Math.min(5000, 900 + f * 3), at); lp.frequency.setTargetAtTime(Math.min(2500, 500 + f * 1.5), at, 0.6);
+  const os = [[1, 1, 'triangle', dec / 4], [2, 0.3, 'sine', dec / 8], [3.01, 0.1, 'sine', dec / 14]].map(([r, a, type, tc]) => {
+    const o = c.createOscillator(); o.type = type; o.frequency.value = f * r;
+    const pg = c.createGain(); pg.gain.setValueAtTime(a, at); pg.gain.setTargetAtTime(0, at, tc);
+    wow.connect(o.detune); o.connect(pg); pg.connect(lp);
+    o.start(at); o.stop(at + dec * 1.6);
+    return [o, pg];
+  });
+  lp.connect(g);
+  const p = panner(c, rand(-0.6, 0.6)); if (p) { g.connect(p); p.connect(bus || S.motifBus); } else g.connect(bus || S.motifBus);
+  os[0][0].onended = () => { os.forEach(([o, pg]) => { try { wow.disconnect(o.detune); } catch (e) { /* gone */ } o.disconnect(); pg.disconnect(); }); lp.disconnect(); g.disconnect(); if (p) p.disconnect(); };
+}
+/* wordless "ah": detuned saws through vowel formants, slow swell */
+function choir(at, midi, dur, vel) {
+  const c = S.ctx, f = mtof(midi), wow = S.wowOut;
+  const sum = c.createGain(); sum.gain.value = 0.5;
+  const src = [-7, 7].map(d => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; wow.connect(o.detune); o.connect(sum); o.start(at); o.stop(at + dur * 1.7); return o; });
+  const mix = c.createGain(), nodes = [];
+  [[700, 7, 1], [1150, 9, 0.7], [2600, 10, 0.25]].forEach(([fr, q, a]) => {
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fr; bp.Q.value = q;
+    const ag = c.createGain(); ag.gain.value = a; sum.connect(bp); bp.connect(ag); ag.connect(mix); nodes.push(bp, ag);
+  });
+  const g = c.createGain(); g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(vel, at + dur * 0.45); g.gain.setTargetAtTime(0, at + dur * 0.45, dur * 0.2);
+  mix.connect(g);
+  const p = panner(c, rand(-0.4, 0.4)); if (p) { g.connect(p); p.connect(S.swellBus); } else g.connect(S.swellBus);
+  src[0].onended = () => { src.forEach(o => { try { wow.disconnect(o.detune); } catch (e) { /* gone */ } o.disconnect(); }); nodes.forEach(n => n.disconnect()); sum.disconnect(); mix.disconnect(); g.disconnect(); if (p) p.disconnect(); };
+}
+
+/* AIRPORT: seven loops of incommensurable length, each repeating one note, so the combinations never repeat */
+const ENO = [[1, 17.8], [3, 20.1], [4, 23.3], [6, 26.9], [8, 31.4], [9, 37.2], [0, 41.9, true]];
+function makeEno(now) { return ENO.map(([idx, per, isChoir]) => ({ idx, per, choir: !!isChoir, next: now + rand(0.5, per * 0.6) })); }
+function airportTick(now) {
+  const sc = SCALES[P.mode], list = sc.map(d => d + 12).concat(sc.map(d => d + 24));
+  S.eno.forEach(v => {
+    while (v.next < now + 0.3) {
+      const at = Math.max(v.next, now);
+      if (Math.random() < P.enoDensity) {
+        if (v.choir) choir(at, P.rootMidi + list[v.idx], rand(6, 9), 1.3 * (P.night ? 0.8 : 1));
+        else piano(at, P.rootMidi + list[v.idx], 0.5 * rand(0.7, 1) * (P.night ? 0.8 : 1), rand(3.5, 5.5));
+      }
+      v.next += v.per * P.loopScale;
+    }
+  });
+}
+
+/* PEARL: sparse, slightly spread piano chords drowned in a long, pedalled reverb */
+function pearlTick(now) {
+  if (now < S.pearlNext) return;
+  const at = now + 0.05;
+  S.chordIdx++; S.offs = tapeChord(S.chordIdx);
+  S.offs.forEach((_, i) => glide(i, 2.5, at));
+  const ch = S.offs, strum = rand(0.04, 0.12);
+  const notes = [ch[0] + 12, ch[2], ch[3], ch[4]].filter(() => Math.random() < 0.85).sort((a, b) => a - b);
+  notes.forEach((o, k) => piano(at + k * strum, P.rootMidi + 12 + o, 0.42 * (k ? 0.8 : 1) * rand(0.8, 1), rand(5, 8)));
+  if (Math.random() < 0.5) piano(at + rand(2, 4), P.rootMidi + 24 + pick(ch.slice(2, 5)), 0.25, 6);
+  S.pearlNext = now + (60 / P.bpm) * 8 * (P.night ? 1.3 : 1) * rand(0.9, 1.3);
+}
+
+/* LOOPS: one short phrase repeats and wears out — notes drop, tone dulls, pitch sags, hiss grows — then a new loop is born */
+function newLoop() {
+  const sc = SCALES[P.mode], n = pick([4, 5, 5, 6]), notes = [];
+  for (let i = 0; i < n; i++) notes.push({ off: pick(sc) + pick([0, 12, 12]), len: pick([1, 1, 1.5, 2]) });
+  return { notes, i: 0, rep: 0, deg: 0, next: 0 };
+}
+function loopNote(at, midi, dur, vel, deg) {
+  const c = S.ctx, f = mtof(midi), wow = S.wowOut, d = Math.max(0.26, dur);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.6; lp.frequency.value = 300 + 2000 * (1 - deg * 0.75);
+  const g = c.createGain(); g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(vel, at + 0.25); g.gain.setValueAtTime(vel, at + d); g.gain.setTargetAtTime(0, at + d, 0.5);
+  const sag = deg * rand(-30, 10);
+  const os = [-6, 6].map(dt => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = dt + sag; wow.connect(o.detune); o.connect(lp); o.start(at); o.stop(at + d + 3); return o; });
+  lp.connect(g);
+  const p = panner(c, rand(-0.3, 0.3)); if (p) { g.connect(p); p.connect(S.motifBus); } else g.connect(S.motifBus);
+  os[0].onended = () => { os.forEach(o => { try { wow.disconnect(o.detune); } catch (e) { /* gone */ } o.disconnect(); }); lp.disconnect(); g.disconnect(); if (p) p.disconnect(); };
+}
+function loopsTick(now) {
+  let L = S.loop;
+  if (L.next < now) L.next = now + 0.05;
+  while (L.next < now + 0.3) {
+    const beat = 60 / P.bpm * 1.1, nt = L.notes[L.i], dur = nt.len * beat;
+    if (Math.random() > L.deg * 0.55) loopNote(L.next, P.rootMidi + nt.off, dur, 0.12 * (1 - L.deg * 0.5), L.deg);
+    L.next += dur; L.i++;
+    if (L.i >= L.notes.length) {
+      L.i = 0; L.rep++; L.deg = Math.min(1, L.rep / P.loopLife);
+      S.tHiss.gain.setTargetAtTime(0.004 + L.deg * 0.008, now, 2);
+      renderScore();
+      if (L.deg >= 1) { const nx = L.next + beat * 2; L = S.loop = newLoop(); L.next = nx; }
+    }
+  }
+}
+
+function applyStyle(tc) {
+  if (!S) return;
+  const now = S.ctx.currentTime, cf = STYLES[STYLE];
+  S.clean.gain.setTargetAtTime(1 - cf.tape, now, tc); S.satG.gain.setTargetAtTime(cf.tape, now, tc);
+  S.tone.frequency.setTargetAtTime(18000 - 10500 * cf.tape, now, tc);
+  S.tHiss.gain.setTargetAtTime(0.004 * cf.tape, now, tc);
+  S.wowD.gain.setTargetAtTime(cf.wow, now, tc); S.flD.gain.setTargetAtTime(2.5 * cf.tape, now, tc);
+  S.dSend.gain.setTargetAtTime(cf.echo, now, tc);
+  S.droneG.gain.setTargetAtTime(cf.drone, now, tc);
+  S.subCtl.gain.setTargetAtTime(P.subLevel * cf.sub, now, tc);
+  S.airCtl.gain.setTargetAtTime(P.airLevel * cf.air, now, tc);
+  S.revOut.gain.setTargetAtTime(Math.min(0.95, P.wet + cf.wet), now, tc);
+  S.voices.forEach((v, i) => v.sg.gain.setTargetAtTime(SAW_MIX * SAWK[i] * cf.saw, now, tc));
+}
+function setStyle(st) {
+  if (!STYLES[st]) return;
+  STYLE = st;
+  try { localStorage.setItem('wd-style', st); } catch (e) { /* optional */ }
+  if (S) {
+    applyStyle(1.5);
+    const now = S.ctx.currentTime;
+    S.prog = P.prog; S.mode = P.mode; S.chordIdx = 0;
+    if (st === 'tape') { S.stepN = 0; S.nextStep = now + 0.3; S.motif = newMotif(); S.offs = tapeChord(0); retune(2); }
+    else if (st === 'pearl') { S.pearlNext = now + 0.5; S.offs = tapeChord(0); retune(3); }
+    else {
+      S.offs = newChord(); retune(3); S.nextSwell = now + 1;
+      if (st === 'airport') S.eno = makeEno(now);
+      if (st === 'loops') { S.loop = newLoop(); S.loop.next = now + 0.5; }
+    }
+  }
+  renderStyle(); renderScore();
+}
+function renderStyle() {
+  document.querySelectorAll('#styleSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === STYLE)));
+}
+
+/* thunder: a sharp crack that rolls off into a low, reverberant rumble */
+function thunder(delay, power) {
+  if (!S) return;
+  const c = S.ctx, at = c.currentTime + delay, dur = rand(3, 6);
+  const src = c.createBufferSource(); src.buffer = S.pink; src.loop = true;
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.4;
+  lp.frequency.setValueAtTime(1200, at); lp.frequency.exponentialRampToValueAtTime(110, at + dur);
+  const g = c.createGain(); g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(1.4 * power, at + 0.05); g.gain.setTargetAtTime(0.7 * power, at + 0.05, 0.2);
+  g.gain.setTargetAtTime(0, at + 0.8, dur / 3);
+  src.connect(lp); lp.connect(g); g.connect(S.swellBus);
+  src.start(at, rand(0, 6)); src.stop(at + dur + 1.5);
+  src.onended = () => { src.disconnect(); lp.disconnect(); g.disconnect(); };
+}
+
+/* rain micro-drop: a few milliseconds of band-passed white noise */
+function drop(at) {
+  const c = S.ctx, dur = rand(0.012, 0.035);
+  const src = c.createBufferSource(); src.buffer = S.white;
+  const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = rand(2200, 7500); bp.Q.value = rand(0.8, 3);
+  const g = c.createGain(); g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(rand(0.03, 0.09) * (0.4 + 0.6 * P.rain), at + 0.0015);
+  g.gain.setTargetAtTime(0, at + 0.0015, dur / 3);
+  const p = panner(c, rand(-0.9, 0.9));
+  src.connect(bp); bp.connect(g); if (p) { g.connect(p); p.connect(S.dropBus); } else g.connect(S.dropBus);
+  src.start(at, rand(0, S.white.duration - 0.2)); src.stop(at + dur + 0.12);
+  src.onended = () => { src.disconnect(); bp.disconnect(); g.disconnect(); if (p) p.disconnect(); };
+}
+
+function tick() {
+  if (!S) return;
+  const now = S.ctx.currentTime, tt = performance.now() / 1000, g = gust(tt), g2 = gust(tt + 9.1);
+  if (STYLE === 'tape') tapeSteps(now);
+  else if (STYLE === 'airport') airportTick(now);
+  else if (STYLE === 'pearl') pearlTick(now);
+  else if (STYLE === 'loops') loopsTick(now);
+  else if (now >= S.nextSwell) { swell(now + 0.05); S.nextSwell = now + Math.max(2.5, expo(P.swellRate)); }
+  if (S.nextDrop < now) S.nextDrop = now;
+  while (S.nextDrop < now + 0.35) {
+    if (P.dropRate > 0) { drop(S.nextDrop + 0.02); S.nextDrop += expo(P.dropRate * (0.7 + 0.6 * g)); }
+    else S.nextDrop += 0.2;
+  }
+  // wind noise follows the Beaufort number, gusts modulate level and colour
+  const b = P.bft / 12, lvl = Math.pow(b, 1.25) * 0.11 + (P.bft > 0 ? 0.006 : 0);
+  S.wind[0].g.gain.setTargetAtTime(lvl * (0.3 + 0.7 * g), now, 0.5);
+  S.wind[0].bp.frequency.setTargetAtTime(150 + b * 650 * (0.5 + 0.5 * g), now, 0.5);
+  S.wind[1].g.gain.setTargetAtTime(lvl * (0.3 + 0.7 * g2), now, 0.5);
+  S.wind[1].bp.frequency.setTargetAtTime(190 + b * 700 * (0.5 + 0.5 * g2), now, 0.5);
+  S.whistle.g.gain.setTargetAtTime(Math.max(0, P.bft - 5) / 7 * 0.035 * g * g, now, 0.6);
+  S.whistle.bp.frequency.setTargetAtTime(650 + b * 900 + g * 350, now, 0.8);
+  S.hiss.gain.setTargetAtTime(P.rain * 0.035 * (P.snow ? 0.35 : 1) * (0.75 + 0.25 * g), now, 1);
+  S.strings.forEach((s, i) => {
+    const gs = gust(tt * 0.6 + i * 13.7 + 3);
+    s.g.gain.setTargetAtTime(P.aeol * 3.2 * Math.pow(gs, 1.5) * (0.4 + 0.6 * g), now, 0.8);
+  });
+}
+
+/* ---------- wave visuals ---------- */
+const cv = $('wave'), cx = cv.getContext('2d');
+const acv = $('ambWave'), acx = acv.getContext('2d');
+const css = getComputedStyle(document.documentElement);
+let FG = css.getPropertyValue('--fg').trim(), DIM = css.getPropertyValue('--dim').trim(), LINE = css.getPropertyValue('--line').trim();
+let ACC = css.getPropertyValue('--accent').trim() || '#7fd0ff';
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+let phase = 0, lastT = 0;
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function fit(c, ctx) {
+  const r = c.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w, h };
+}
+function drawWaves(ctx, w, top, bottom, N, aBase, aWind, g, windN, lw) {
+  const mid = (top + bottom) / 2, L = (N - 1) / 2, gap = (bottom - top) / (N - 1) * 0.8;
+  const amp = (aBase + windN * aWind) * (0.5 + 0.5 * g), step = w > 1200 ? 4 : 3;
+  for (let i = 0; i < N; i++) {
+    const y0 = mid + (i - L) * gap, lead = i === L, k = i / (N - 1) * 8;
+    ctx.beginPath();
+    for (let x = 0; x <= w + step; x += step) {
+      const u = Math.min(1, x / w), env = Math.pow(Math.sin(Math.PI * u), 0.7);
+      const y = y0 + env * amp * (0.55 + 0.45 * Math.sin(k * 0.9 + phase * 0.2)) *
+        (0.7 * Math.sin(u * 7 + phase * 1.3 + k * 0.55) + 0.9 * noise(u * 3.2 + phase * 0.8 + k * 0.4));
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.globalAlpha = lead ? 1 : 0.12 + 0.26 * (1 - Math.abs(i - L) / L);
+    ctx.strokeStyle = lead ? ACC : FG; ctx.lineWidth = lead ? lw * 1.5 : lw; ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+/* ---------- weather on the sky: clouds, rain, snow, wind, storm, heat, frost, fog ---------- */
+const fxc = $('fx'), fxx = fxc.getContext('2d');
+const FX = { rain: [], snow: [], streaks: [], clouds: null, sprites: null, frost: null, flash: 0, flash2: 0, t: 0, nextBolt: 0 };
+function fitFx() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5), w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
+  if (fxc.width !== Math.round(w * dpr) || fxc.height !== Math.round(h * dpr)) { fxc.width = Math.round(w * dpr); fxc.height = Math.round(h * dpr); }
+  fxx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w, h };
+}
+// three cloud shapes, each rendered once in a light and a storm-dark tint
+function cloudSprites() {
+  if (FX.sprites) return FX.sprites;
+  const shapes = [0, 1, 2].map(() => Array.from({ length: 9 }, () => [70 + Math.random() * 370, 70 + Math.random() * 60, 40 + Math.random() * 60]));
+  const make = rgb => shapes.map(blobs => {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 200; const x = c.getContext('2d');
+    blobs.forEach(([cx, cy, r]) => { const gr = x.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, 'rgba(' + rgb + ',0.55)'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.fillRect(0, 0, 512, 200); });
+    return c;
+  });
+  FX.sprites = { light: make('255,255,255'), dark: make('46,52,62') };
+  FX.clouds = Array.from({ length: 8 }, (_, i) => ({ x: Math.random() * 1.4 - 0.2, y: -0.04 + Math.random() * 0.2, s: 0.6 + Math.random() * 0.9, k: i % 3, v: 0.6 + Math.random() * 0.8 }));
+  FX.frost = Array.from({ length: 110 }, () => {
+    const side = Math.floor(Math.random() * 4), u = Math.random(), d = Math.pow(Math.random(), 2) * 0.12;
+    return { x: side === 0 ? d : side === 1 ? 1 - d : u, y: side === 2 ? d : side === 3 ? 1 - d : u, r: 3 + Math.random() * 7, a: Math.random() * Math.PI };
+  });
+  return FX.sprites;
+}
+function fxState() {
+  const b = bft(W.wind), prec = W.precip > 0.05 ? clamp(W.precip / 4, 0.12, 1) : 0, snow = prec > 0 && W.temp <= 0.5;
+  return {
+    b, wn: clamp(W.wind / 60, 0, 2.2), cloud: W.cloud / 100,
+    rain: snow ? 0 : prec, snow: snow ? prec : 0,
+    storm: b >= 8 && (W.cloud > 55 || prec > 0) ? clamp((b - 7) / 5, 0.2, 1) : 0,
+    heat: clamp((W.temp - 26) / 9, 0, 1), cold: clamp(-W.temp / 15, 0, 1),
+    fog: W.hum >= 92 ? clamp((W.hum - 92) / 8, 0, 1) * clamp(1 - W.wind / 15, 0, 1) : 0
+  };
+}
+// keep a particle pool at the target size
+function pool(arr, n, make) { while (arr.length < n) arr.push(make()); if (arr.length > n) arr.length = n; return arr; }
+function drawFx(ctx, w, h, dt, st, light) {
+  const sp = cloudSprites(), area = clamp(w * h / (1920 * 1080), 0.3, 1.6) * (ANIM === 'calm' ? 0.5 : 1), slow = reduceMotion ? 0.25 : 1;
+  ctx.save();
+  // clouds: count follows cloud cover, speed follows wind, storms darken them
+  const nc = Math.round(st.cloud * 8), cs = (0.004 + st.wn * 0.03) * slow;
+  const aL = (light ? 0.6 : 0.13) * (1 - st.storm * 0.7), aD = st.storm * 0.38 + (st.rain || st.snow ? 0.1 : 0);
+  for (let i = 0; i < nc; i++) {
+    const c = FX.clouds[i]; c.x += cs * c.v * dt; if (c.x > 1.3) { c.x = -0.45; c.y = -0.04 + Math.random() * 0.2; }
+    const cw = Math.min(w * 0.32, 520) * c.s, chh = cw * 200 / 512, px = c.x * w - cw * 0.3, py = c.y * h;
+    ctx.globalAlpha = aL; ctx.drawImage(sp.light[c.k], px, py, cw, chh);
+    if (aD > 0) { ctx.globalAlpha = aD; ctx.drawImage(sp.dark[c.k], px, py, cw, chh); }
+  }
+  // clouds belong to the upper sky: dissolve them before they reach the controls
+  if (nc) {
+    const fade = ctx.createLinearGradient(0, h * 0.18, 0, h * 0.5);
+    fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.globalCompositeOperation = 'destination-out'; ctx.globalAlpha = 1; ctx.fillStyle = fade; ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  // fog: soft drifting banks
+  if (st.fog > 0) {
+    for (let k = 0; k < 3; k++) {
+      const cx = ((FX.t * 0.006 * (k % 2 ? 1 : -1) * slow + k * 0.37) % 1.4 + 1.4) % 1.4 * w - w * 0.2, cy = h * (0.3 + k * 0.25);
+      const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.6);
+      gr.addColorStop(0, light ? 'rgba(255,255,255,0.8)' : 'rgba(150,160,170,0.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalAlpha = 0.6 * st.fog; ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
+    }
+  }
+  // heat: warm haze and shimmering bands near the horizon
+  if (st.heat > 0) {
+    const gr = ctx.createLinearGradient(0, h * 0.4, 0, h);
+    gr.addColorStop(0, 'rgba(255,150,60,0)'); gr.addColorStop(1, 'rgba(255,150,60,0.22)');
+    ctx.globalAlpha = st.heat; ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgb(255,170,90)'; ctx.lineWidth = 22; ctx.globalAlpha = 0.05 * st.heat;
+    for (let k = 0; k < 6; k++) {
+      const y0 = h * (0.6 + k * 0.075) - ((FX.t * 14 * slow) % (h * 0.075));
+      ctx.beginPath();
+      for (let x = 0; x <= w + 12; x += 12) { const y = y0 + Math.sin(x * 0.012 + FX.t * 1.6 * slow + k) * 6 * (1 + st.heat); if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+  }
+  // wind streaks from Bft 5 up, a gale of them in a hurricane
+  const ns = st.b >= 5 ? Math.round(clamp((st.b - 4) / 8, 0, 1) * 45 * area) : 0;
+  pool(FX.streaks, ns, () => ({ x: Math.random(), y: Math.random(), l: 0.04 + Math.random() * 0.12, v: 0.7 + Math.random() * 0.6, ph: Math.random() * 6.3 }));
+  if (ns) {
+    ctx.strokeStyle = light ? 'rgb(40,50,60)' : 'rgb(230,236,240)'; ctx.lineWidth = 1; ctx.globalAlpha = 0.08 + 0.1 * clamp((st.b - 4) / 8, 0, 1);
+    ctx.beginPath();
+    FX.streaks.forEach(q => {
+      q.x += (0.25 + st.wn * 0.6) * q.v * dt * slow;
+      if (q.x - q.l > 1) { q.x = -Math.random() * 0.2; q.y = Math.random(); }
+      const X = q.x * w, Y = q.y * h + Math.sin(FX.t * 2 + q.ph) * 6;
+      ctx.moveTo(X, Y); ctx.quadraticCurveTo(X - q.l * w * 0.5, Y - 4, X - q.l * w, Y + 2);
+    });
+    ctx.stroke();
+  }
+  // rain: slanted streaks, slant from the wind
+  const nr = Math.round(st.rain * 380 * area);
+  pool(FX.rain, nr, () => ({ x: Math.random() * 1.3 - 0.3, y: Math.random(), l: 0.6 + Math.random() * 0.4, v: 0.8 + Math.random() * 0.4 }));
+  if (nr) {
+    const vy = 1.15 * slow, vx = vy * Math.min(st.wn, 1.6) * 0.45 * h / w, L = 14 + 18 * st.rain;
+    ctx.strokeStyle = light ? 'rgb(60,80,100)' : 'rgb(210,225,240)'; ctx.lineWidth = 1; ctx.globalAlpha = 0.16 + st.rain * 0.12;
+    ctx.beginPath();
+    FX.rain.forEach(q => {
+      q.y += vy * q.v * dt; q.x += vx * q.v * dt;
+      if (q.y > 1.05) { q.y = -0.05; q.x = Math.random() * 1.3 - 0.3; }
+      const X = q.x * w, Y = q.y * h, l = L * q.l, dx = l * vx * w / (vy * h);
+      ctx.moveTo(X, Y); ctx.lineTo(X - dx, Y - l);
+    });
+    ctx.stroke();
+  }
+  // snow: drifting, swaying flakes
+  const nf = Math.round(st.snow * 260 * area);
+  pool(FX.snow, nf, () => ({ x: Math.random() * 1.2 - 0.1, y: Math.random(), r: 1 + Math.random() * 2.2, v: 0.6 + Math.random() * 0.6, ph: Math.random() * 6.3 }));
+  if (nf) {
+    ctx.beginPath();
+    FX.snow.forEach(q => {
+      q.y += 0.07 * q.v * (1 + st.snow * 0.5) * dt * slow;
+      q.x += (Math.min(st.wn, 1.6) * 0.1 + Math.sin(FX.t * 0.8 + q.ph) * 0.01) * dt * slow;
+      if (q.y > 1.03) { q.y = -0.03; q.x = Math.random() * 1.2 - 0.2; }
+      if (q.x > 1.05) q.x -= 1.1;
+      const X = q.x * w, Y = q.y * h; ctx.moveTo(X + q.r, Y); ctx.arc(X, Y, q.r, 0, Math.PI * 2);
+    });
+    ctx.globalAlpha = 0.9; ctx.fillStyle = '#fff'; ctx.fill();
+    if (light) { ctx.globalAlpha = 0.18; ctx.strokeStyle = 'rgb(90,105,120)'; ctx.lineWidth = 0.8; ctx.stroke(); }
+  }
+  // frost: icy vignette and crystals around the edges
+  if (st.cold > 0) {
+    const gr = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
+    gr.addColorStop(0, 'rgba(225,238,255,0)'); gr.addColorStop(1, 'rgba(225,238,255,0.6)');
+    ctx.globalAlpha = 0.65 * st.cold; ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = light ? 'rgb(150,180,210)' : 'rgb(230,242,255)'; ctx.lineWidth = 1; ctx.globalAlpha = 0.55 * st.cold;
+    ctx.beginPath();
+    FX.frost.forEach(f => {
+      const X = f.x * w, Y = f.y * h, r = f.r * (0.6 + st.cold * 0.6);
+      for (let k = 0; k < 3; k++) { const a = f.a + k * Math.PI / 3; ctx.moveTo(X - Math.cos(a) * r, Y - Math.sin(a) * r); ctx.lineTo(X + Math.cos(a) * r, Y + Math.sin(a) * r); }
+    });
+    ctx.stroke();
+  }
+  if (FX.flash > 0) { ctx.globalAlpha = FX.flash * 0.3; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); FX.flash = Math.max(0, FX.flash - dt * 4); }
+  ctx.restore();
+}
+// storm clock: thunder always, the lightning flash only with full animation and no reduced-motion preference
+function stormTick(st, dt) {
+  FX.t += dt;
+  if (st.storm > 0) {
+    if (FX.t >= FX.nextBolt) {
+      if (FX.nextBolt) {
+        thunder(rand(0.6, 2.8), 0.4 + st.storm * 0.6);
+        if (ANIM === 'full' && !reduceMotion) { FX.flash = 1; FX.flash2 = FX.t + 0.12; }
+      }
+      FX.nextBolt = FX.t + rand(6, 18) / (0.5 + st.storm);
+    }
+    if (FX.flash2 && FX.t >= FX.flash2) { FX.flash = 0.7; FX.flash2 = 0; }
+  } else FX.nextBolt = 0;
+}
+
+/* ---------- animation level: full = 60 fps; calm = 30 fps (20 at night in ambient), half the particles, no flashes;
+   off = a still picture redrawn twice a second so colours keep following the sky ---------- */
+let ANIM = 'calm';
+try { const a = localStorage.getItem('wd-anim'); if (a === 'full' || a === 'calm' || a === 'off') ANIM = a; else if (reduceMotion) ANIM = 'off'; } catch (e) { if (reduceMotion) ANIM = 'off'; }
+let lastDraw = 0, fxCleared = false;
+function renderAnim() {
+  document.querySelectorAll('#animSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.anim === ANIM)));
+  document.documentElement.classList.toggle('anim-off', ANIM === 'off');
+}
+$('animSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  ANIM = b.dataset.anim; FX.flash = 0; fxCleared = false; lastDraw = 0; renderAnim();
+  try { localStorage.setItem('wd-anim', ANIM); } catch (err) { /* optional */ }
+});
+renderAnim();
+
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  FG = cs.getPropertyValue('--fg').trim() || FG; DIM = cs.getPropertyValue('--dim').trim() || DIM;
+  LINE = cs.getPropertyValue('--line').trim() || LINE; ACC = cs.getPropertyValue('--accent').trim() || ACC;
+}
+function frame(ms) {
+  requestAnimationFrame(frame);
+  const fps = ANIM === 'full' ? 0 : ANIM === 'off' ? 2 : (ambOn && W.night ? 20 : 30);
+  if (fps && ms - lastDraw < 1000 / fps - 2) return;
+  lastDraw = ms;
+  readColors();
+  const tt = ms / 1000, dt = Math.min(0.1, tt - lastT || 0.016); lastT = tt;
+  const still = ANIM === 'off';
+  const windN = clamp(W.wind / 50, 0, 1), g = still ? 0.6 : gust(tt);
+  if (!still) phase += dt * (0.35 + windN * 2.4) * (reduceMotion ? 0.25 : 1) * (0.6 + 0.8 * g);
+  const st = fxState(), light = document.documentElement.style.colorScheme === 'light';
+  stormTick(st, dt);
+  if (ambOn) {
+    const { w, h } = fit(acv, acx);
+    acx.clearRect(0, 0, w, h);
+    if (!still) drawFx(acx, w, h, dt, st, light);
+    drawWaves(acx, w, h * 0.2, h * 0.8, 13, h * 0.02, h * 0.09, g, windN, 1.1);
+  } else {
+    if (!still) { const fw = fitFx(); fxx.clearRect(0, 0, fw.w, fw.h); drawFx(fxx, fw.w, fw.h, dt, st, light); fxCleared = false; }
+    else if (!fxCleared) { const fw = fitFx(); fxx.clearRect(0, 0, fw.w, fw.h); fxCleared = true; }
+    const { w: cw, h: ch } = fit(cv, cx);
+    cx.clearRect(0, 0, cw, ch);
+    drawWaves(cx, cw, 8, ch - 34, 9, ch * 0.05, ch * 0.21, g, windN, 1);
+    // Beaufort scale 0..12
+    const pad = 2, base = ch - 14, step = (cw - pad * 2) / 12, cur = bft(W.wind);
+    cx.font = '10px ' + MONO; cx.textAlign = 'center'; cx.fillStyle = DIM;
+    cx.strokeStyle = LINE; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(0, base + 0.5); cx.lineTo(cw, base + 0.5); cx.stroke();
+    for (let b = 0; b <= 12; b++) {
+      const x = pad + b * step, major = b % 4 === 0;
+      cx.strokeStyle = b === cur ? ACC : DIM; cx.lineWidth = b === cur ? 2 : 1;
+      cx.beginPath(); cx.moveTo(x, base); cx.lineTo(x, base - (b === cur ? 12 : major ? 8 : 4)); cx.stroke();
+      if (major) cx.fillText('Bft ' + b, Math.min(cw - 16, Math.max(16, x)), ch - 1);
+    }
+  }
+}
+
+/* ---------- UI render ---------- */
+const fmt = {
+  temp: v => v.toFixed(1).replace('.0', '') + ' °C', wind: v => Math.round(v) + ' ' + t('kmh'), precip: v => v.toFixed(1) + ' ' + t('mmh'),
+  cloud: v => Math.round(v) + ' %', hum: v => Math.round(v) + ' %', press: v => Math.round(v) + ' ' + t('hpa')
+};
+const KEYS = ['temp', 'wind', 'precip', 'cloud', 'hum', 'press'];
+const placeName = () => W.live ? (W.place || t('yourLoc')) : t('city');
+
+function renderParams() {
+  KEYS.forEach(k => {
+    const el = $('r-' + k), v = W[k];
+    el.value = v; el.disabled = W.live || !!RP;
+    el.style.setProperty('--p', ((v - el.min) / (el.max - el.min) * 100) + '%');
+    $('v-' + k).textContent = fmt[k](v);
+  });
+  $('segDay').setAttribute('aria-pressed', String(!W.night)); $('segNight').setAttribute('aria-pressed', String(W.night));
+  $('segDay').disabled = W.live || !!RP; $('segNight').disabled = W.live || !!RP;
+  $('segLive').setAttribute('aria-pressed', String(W.live)); $('segMan').setAttribute('aria-pressed', String(!W.live));
+  $('paramHint').textContent = RP ? t('hintReplay') : W.live ? t('hintLive') : t('hintManual');
+  $('place').textContent = placeName(); $('ambPlace').textContent = placeName(); $('coords').textContent = W.coords;
+  const tag = $('srcTag'); tag.textContent = W.live ? t('live') : t('sample'); tag.classList.toggle('live', W.live);
+  const b = bft(W.wind), wr = Math.round(W.wind) + ' ' + t('kmh') + ' · Bft ' + b + ' ' + t('bft')[b];
+  $('windRead').textContent = wr; $('ambWind').textContent = wr;
+  cv.setAttribute('aria-label', t('windAnim', { n: Math.round(W.wind) }));
+}
+function renderScore() {
+  $('sc-key').textContent = NOTES[P.rootMidi % 12] + (usesProg() ? ' · ' + PROG_LABEL[P.prog] : ' ' + P.mode);
+  $('sc-cut').textContent = Math.round(S ? S.curCut : P.cutoff) + ' ' + t('hz');
+  $('sc-voices').textContent =
+    STYLE === 'tape' ? t('voicesTape', { n: Math.round(P.bpm) }) :
+    STYLE === 'airport' ? t('voicesAir', { n: Math.round(ENO[0][1] * P.loopScale), m: Math.round(ENO[6][1] * P.loopScale) }) :
+    STYLE === 'pearl' ? t('voicesPearl', { n: Math.round(60 / P.bpm * 8 * (P.night ? 1.3 : 1) * 1.1) }) :
+    STYLE === 'loops' ? t('voicesLoops', { n: S && S.loop ? Math.round(S.loop.deg * 100) : 0 }) :
+    t('voicesDesc', { n: Math.round(P.swellRate * 60) });
+  $('sc-aeol').textContent = Math.round(P.aeol * 100) + ' % · Bft ' + P.bft;
+  $('sc-rain').textContent = P.snow ? t('snowDesc') : P.rain ? t('rainDesc', { n: Math.round(P.dropRate) }) : t('none');
+  $('sc-night').textContent = W.night ? t('nightDesc') : t('dayDesc');
+}
+
+const at = (a, x) => { const i = Math.min(a.length - 1, Math.floor(x)), j = Math.min(a.length - 1, i + 1); return a[i] + (a[j] - a[i]) * (x - i); };
+function lineChart(el, arr, now, minSpan) {
+  const n = arr.length, mn = Math.min(...arr), mx = Math.max(...arr), span = Math.max(mx - mn, minSpan);
+  const lo = (mn + mx) / 2 - span * 0.62, hi = (mn + mx) / 2 + span * 0.62;
+  const X = i => i / (n - 1) * 240, Y = v => 48 - (v - lo) / (hi - lo) * 44 - 2;
+  const pts = arr.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1));
+  const nx = X(now);
+  el.innerHTML = '<svg viewBox="0 0 240 48" preserveAspectRatio="none" aria-hidden="true">' +
+    '<line class="base" x1="0" x2="240" y1="47.5" y2="47.5" vector-effect="non-scaling-stroke"/>' +
+    '<path class="area" d="M0,48 L' + pts.join(' L') + ' L240,48Z"/>' +
+    '<path class="ln" d="M' + pts.join(' L') + '" vector-effect="non-scaling-stroke"/>' +
+    '<line class="now" x1="' + nx + '" x2="' + nx + '" y1="0" y2="48" vector-effect="non-scaling-stroke"/></svg>' +
+    '<i class="pt" style="left:' + (nx / 240 * 100) + '%;top:' + (Y(at(arr, now)) / 48 * 100) + '%"></i>';
+}
+function barChart(el, arr, now) {
+  const n = arr.length, mx = Math.max(1, ...arr), bw = 240 / n;
+  let r = '';
+  arr.forEach((v, i) => { if (v > 0.01) { const h = Math.max(1.5, v / mx * 44); r += '<rect x="' + (i * bw + bw * 0.15).toFixed(1) + '" y="' + (48 - h).toFixed(1) + '" width="' + (bw * 0.7).toFixed(1) + '" height="' + h.toFixed(1) + '"/>'; } });
+  const nx = (now + 0.5) * bw;
+  el.innerHTML = '<svg viewBox="0 0 240 48" preserveAspectRatio="none" aria-hidden="true">' +
+    '<line class="base" x1="0" x2="240" y1="47.5" y2="47.5" vector-effect="non-scaling-stroke"/>' + r +
+    '<line class="now" x1="' + nx + '" x2="' + nx + '" y1="0" y2="48" vector-effect="non-scaling-stroke"/></svg>';
+}
+function demoHourly() {
+  const nh = new Date().getHours(), T = [], Wd = [], Pr = [];
+  for (let i = 0; i < 24; i++) {
+    const h = (nh - 6 + i + 24) % 24;
+    T.push(W.temp + 3.2 * (Math.cos((h - 15) / 24 * 2 * Math.PI) - Math.cos((nh - 15) / 24 * 2 * Math.PI)));
+    Wd.push(Math.max(0, W.wind * (1 + 0.35 * Math.sin((i - 6) * 0.45))));
+    Pr.push(W.precip > 0 ? Math.max(0, W.precip * (1 + 0.9 * Math.sin((i - 6) * 0.55))) : 0);
+  }
+  return { t: T, w: Wd, p: Pr, now: 6 };
+}
+function renderCharts() {
+  const H = RP ? { t: RP.T, w: RP.Wd, p: RP.Pr, now: RP.x } : (W.live && W.hourly ? W.hourly : demoHourly());
+  lineChart($('sp-temp'), H.t, H.now, 4); lineChart($('sp-wind'), H.w, H.now, 10); barChart($('sp-rain'), H.p, H.now);
+  const r = (a, d) => Math.min(...a).toFixed(d) + ' … ' + Math.max(...a).toFixed(d);
+  $('rg-temp').textContent = r(H.t, 0); $('rg-wind').textContent = r(H.w, 0); $('rg-rain').textContent = '0 … ' + Math.max(...H.p).toFixed(1);
+  $('chartSrc').textContent = RP ? t('chartReplay') : W.live && W.hourly ? t('chartForecast') : t('chartSample');
+  $('axL').textContent = RP ? t('axisDay') : t('axisBack');
+  $('axN').textContent = t('axisNow'); $('axN').style.visibility = RP ? 'hidden' : '';
+  $('axR').textContent = RP ? t('axisNow') : t('axisFwd');
+}
+function renderState() {
+  const on = !!S;
+  $('play').setAttribute('aria-pressed', String(on)); $('play').setAttribute('aria-label', on ? t('stopSound') : t('startSound'));
+  $('dot').classList.toggle('on', on); $('stateTxt').textContent = on ? t('playing') : t('silent');
+  $('ambDot').classList.toggle('on', on); $('ambState').textContent = on ? t('playing') : t('silent');
+  $('ambPlay').textContent = on ? t('stopSound') : t('startSound');
+  try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = on ? 'playing' : 'paused'; } catch (e) { /* optional */ }
+  renderSleep();
+}
+/* accent follows the sky: night indigo, rain teal, fog steel, clear sky blue */
+function sunTimesNow() { return W.live && W.sunTimes ? W.sunTimes : sunTimes(new Date(), BRNO.lat, BRNO.lon); }
+function skyNow() {
+  if (RP) return sunAt(RP.min, sunTimesNow());
+  if (W.sunFix != null) return { sun: W.sunFix, rising: true, p: 0.5 };
+  if (W.live && W.sunTimes) return sunAt(Date.now() / 60000 + W.tzOff, W.sunTimes);
+  return manualSun();
+}
+/* the page colour follows the sun; CSS animates every change over 2.5 s */
+function applyTheme() {
+  const { sun, rising, p } = skyNow(), { light, pal } = skyPalette(sun, rising), root = document.documentElement;
+  for (const k in pal) root.style.setProperty('--' + k, pal[k]);
+  // the glow crosses the sky left to right; low on the horizon at sunrise / sunset, high at noon (and the moon at midnight)
+  root.style.setProperty('--sunX', (8 + 84 * clamp(p == null ? 0.5 : p, 0, 1)).toFixed(1) + '%');
+  root.style.setProperty('--sunY', (sun >= 0 ? 100 - sun * 85 : 100 + sun * 70).toFixed(1) + '%');
+  root.style.setProperty('--stars', clamp(-sun / 0.3, 0, 1).toFixed(2));
+  root.style.colorScheme = light ? 'light' : 'dark';
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = pal.sky1;
+}
+// once a minute: move the sky, and in manual mode let night fall / day break by the real clock
+setInterval(() => {
+  if (RP) return;
+  if (!W.live && W.sunFix == null) { const n = skyNow().sun < 0; if (n !== W.night) { W.night = n; refresh(); return; } }
+  applyTheme();
+}, 60000);
+function refresh() { P = derive(W); applyAudio(); applyTheme(); renderParams(); renderScore(); renderCharts(); }
+
+/* ---------- live weather ---------- */
+async function getJson(url, ms) {
+  const ctl = new AbortController(), id = setTimeout(() => ctl.abort(), ms);
+  try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error('http ' + r.status); return await r.json(); }
+  finally { clearTimeout(id); }
+}
+async function loadWeather(lat, lon) {
+  const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(3) + '&longitude=' + lon.toFixed(3) +
+    '&current=temperature_2m,relative_humidity_2m,is_day,precipitation,cloud_cover,pressure_msl,wind_speed_10m' +
+    '&hourly=temperature_2m,wind_speed_10m,precipitation,cloud_cover,relative_humidity_2m,pressure_msl,is_day&daily=sunrise,sunset&past_hours=24&forecast_hours=19&wind_speed_unit=kmh&timezone=auto';
+  const j = await getJson(url, 10000), cur = j.current;
+  W.temp = cur.temperature_2m; W.wind = cur.wind_speed_10m; W.precip = cur.precipitation || 0;
+  W.cloud = cur.cloud_cover; W.hum = cur.relative_humidity_2m; W.press = cur.pressure_msl; W.night = cur.is_day === 0;
+  const key = String(cur.time).slice(0, 13) + ':00';
+  let idx = j.hourly.time.indexOf(key); if (idx < 0) idx = Math.min(24, j.hourly.time.length - 1);
+  const a = Math.max(0, idx - 6), b = Math.min(j.hourly.time.length, idx + 19), num = x => x.slice(a, b).map(v => Number(v) || 0);
+  W.hourly = { t: num(j.hourly.temperature_2m), w: num(j.hourly.wind_speed_10m), p: num(j.hourly.precipitation), now: idx - a };
+  const hv = (k, i) => Number(j.hourly[k] && j.hourly[k][i]) || 0, day = [];
+  for (let i = Math.max(0, idx - 24); i <= idx; i++) day.push({
+    h: Number(String(j.hourly.time[i]).slice(11, 13)) || 0,
+    temp: hv('temperature_2m', i), wind: hv('wind_speed_10m', i), precip: hv('precipitation', i),
+    cloud: hv('cloud_cover', i), hum: hv('relative_humidity_2m', i), press: hv('pressure_msl', i) || 1013,
+    night: j.hourly.is_day ? j.hourly.is_day[i] === 0 : W.night
+  });
+  W.day = day;
+  W.tzOff = (Number(j.utc_offset_seconds) || 0) / 60;
+  const hm = x => { const t = String(x).slice(11, 16).split(':'); return Number(t[0]) * 60 + Number(t[1]); };
+  if (j.daily && j.daily.sunrise && j.daily.sunrise.length) {
+    const di = Math.max(0, j.daily.time.indexOf(String(cur.time).slice(0, 10)));
+    W.sunTimes = { sr: hm(j.daily.sunrise[di]), ss: hm(j.daily.sunset[di]) };
+  }
+}
+async function nameLocation() {
+  if (!coords) return;
+  try {
+    const g = await getJson('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + coords.lat + '&longitude=' + coords.lon + '&localityLanguage=' + lang, 8000);
+    W.place = g.city || g.locality || g.principalSubdivision || null; renderParams(); setupMedia();
+  } catch (e) { /* place name is optional */ }
+}
+async function goLive() {
+  if (liveBusy) return; liveBusy = true;
+  try {
+    setNote('locating');
+    try {
+      if (!navigator.geolocation) throw new Error('geo');
+      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 12000, maximumAge: 600000 }));
+      coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    } catch (e) { W.live = false; refresh(); setNote('locFail'); return; }
+    setNote('loadingW');
+    try { await loadWeather(coords.lat, coords.lon); }
+    catch (e) { W.live = false; refresh(); setNote('apiFail'); return; }
+    W.live = true; W.sunFix = null;
+    W.coords = Math.abs(coords.lat).toFixed(2) + '° ' + (coords.lat >= 0 ? 'N' : 'S') + ' · ' + Math.abs(coords.lon).toFixed(2) + '° ' + (coords.lon >= 0 ? 'E' : 'W');
+    W.place = null;
+    refresh(); setNote('liveNote');
+    nameLocation();
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(async () => {
+      if (RP) return;
+    try { await loadWeather(coords.lat, coords.lon); refresh(); } catch (e) { setNote('refreshFail'); }
+    }, 600000);
+  } finally { liveBusy = false; }
+}
+function goManual() {
+  clearInterval(refreshTimer); W.live = false; W.coords = SAMPLE_COORDS;
+  W.sunFix = null; W.night = manualSun().sun < 0;
+  setNote('manualNote'); refresh(); setupMedia();
+}
+const toggleSource = () => { if (RP) stopReplay(); if (W.live) goManual(); else goLive(); };
+const togglePlay = () => { if (S) stopAudio(); else startAudio(); renderState(); };
+
+/* ---------- day replay: the last 24 hours played back in a few minutes ---------- */
+// manual mode: a plausible day that ends exactly on the current slider values
+function demoDay() {
+  const nh = new Date().getHours(), out = [];
+  for (let k = 0; k <= 24; k++) {
+    const back = 24 - k, h = (nh - back + 48) % 24;
+    const dT = 3.2 * (Math.cos((h - 15) / 24 * 2 * Math.PI) - Math.cos((nh - 15) / 24 * 2 * Math.PI));
+    out.push({
+      h,
+      temp: W.temp + dT,
+      wind: clamp(W.wind + 14 * Math.sin(back * 0.33) + 6 * Math.sin(back * 0.9), 0, 80),
+      precip: clamp(W.precip + 2.4 * Math.sin(back * 0.5) * Math.sin(back * 0.13), 0, 10),
+      cloud: clamp(W.cloud + 40 * Math.sin(back * 0.27), 0, 100),
+      hum: clamp(W.hum - 1.5 * dT + 10 * Math.sin(back * 0.31), 15, 100),
+      press: W.press + 8 * Math.sin(back * 0.12),
+      night: back === 0 ? W.night : sunAt(h * 60 + 30, sunTimes(new Date(), BRNO.lat, BRNO.lon)).sun < 0
+    });
+  }
+  return out;
+}
+const rpProgress = () => RP ? clamp((performance.now() - RP.t0) / RP.dur, 0, 1) : 0;
+function toggleReplay() {
+  if (RP) { stopReplay(); return; }
+  const series = W.live && W.day && W.day.length >= 2 ? W.day : demoDay();
+  const snap = {}; KEYS.concat('night', 'sunFix').forEach(k => { snap[k] = W[k]; });
+  RP = { series, snap, x: 0, min: 0, t0: performance.now(), dur: replayMin * 60000, label: '',
+         T: series.map(q => q.temp), Wd: series.map(q => q.wind), Pr: series.map(q => q.precip) };
+  if (!S) { startAudio(); renderState(); }
+  RP.timer = setInterval(replayStep, 250);
+  replayStep();
+}
+function replayStep() {
+  if (!RP) return;
+  const s = RP.series, n = s.length, p = rpProgress();
+  const x = p * (n - 1), i = Math.min(n - 2, Math.floor(x)), f = x - i, a = s[i], b = s[i + 1];
+  RP.x = x;
+  KEYS.forEach(k => { W[k] = a[k] + (b[k] - a[k]) * f; });
+  W.night = f < 0.5 ? a.night : b.night;
+  const vh = f >= 1 ? b.h : a.h, vm = f >= 1 ? 0 : Math.floor(f * 60);
+  RP.label = '↺ ' + String(vh).padStart(2, '0') + ':' + String(vm).padStart(2, '0');
+  RP.min = vh * 60 + (f >= 1 ? 0 : f * 60);
+  P = derive(W); applyAudio(); applyTheme(); renderParams(); renderScore(); renderCharts();
+  renderReplay(p);
+  if (p >= 1) stopReplay();
+}
+function stopReplay() {
+  if (!RP) return;
+  clearInterval(RP.timer);
+  const snap = RP.snap; RP = null;
+  Object.assign(W, snap);
+  refresh(); renderReplay(0); clock();
+}
+function renderReplay(p) {
+  const on = !!RP;
+  $('rpBtn').setAttribute('aria-pressed', String(on));
+  $('rpLabel').textContent = on ? t('replayStop') : t('replay');
+  $('rp').hidden = !on;
+  $('note').hidden = on;   // the progress line replaces the hint while the day plays
+  if (on && RP.label) {
+    $('rpFill').style.width = (p * 100).toFixed(1) + '%';
+    $('rpTime').textContent = RP.label + ' · ' + Math.round(p * 100) + ' %';
+    $('clock').textContent = RP.label; $('ambClock').textContent = RP.label;
+  }
+  document.querySelectorAll('#rpSeg button').forEach(x => x.setAttribute('aria-pressed', String(parseInt(x.dataset.min, 10) === replayMin)));
+}
+$('rpBtn').addEventListener('click', toggleReplay);
+$('rpSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const p = rpProgress();
+  replayMin = parseInt(b.dataset.min, 10);
+  if (RP) { RP.dur = replayMin * 60000; RP.t0 = performance.now() - p * RP.dur; }   // keep the position, change the speed
+  try { localStorage.setItem('wd-rp', String(replayMin)); } catch (err) { /* optional */ }
+  renderReplay(p);
+});
+try { const v = parseInt(localStorage.getItem('wd-rp'), 10); if ([5, 10, 20].includes(v)) replayMin = v; } catch (e) { /* optional */ }
+
+/* ---------- events ---------- */
+KEYS.forEach(k => $('r-' + k).addEventListener('input', e => { if (W.live || RP) return; W[k] = parseFloat(e.target.value); refresh(); }));
+$('segDay').addEventListener('click', () => { if (W.live || RP) return; W.night = false; W.sunFix = 0.85; refresh(); });
+$('segNight').addEventListener('click', () => { if (W.live || RP) return; W.night = true; W.sunFix = -0.8; refresh(); });
+$('segLive').addEventListener('click', () => { if (RP) stopReplay(); if (!W.live) goLive(); });
+$('segMan').addEventListener('click', () => { if (RP) stopReplay(); if (W.live) goManual(); });
+$('play').addEventListener('click', togglePlay);
+
+/* ---------- settings drawer ---------- */
+let drawerOpen = false;
+function renderMore() {
+  document.body.classList.toggle('drawer-open', drawerOpen);
+  const d = $('drawer'); d.setAttribute('aria-hidden', String(!drawerOpen)); d.inert = !drawerOpen;
+  $('moreBtn').setAttribute('aria-expanded', String(drawerOpen));
+  $('moreLabel').textContent = t('settings'); $('drawerTitle').textContent = t('settings');
+  $('drawerClose').setAttribute('aria-label', t('close'));
+}
+function setDrawer(open) {
+  drawerOpen = open; renderMore();
+  try { (open ? $('drawerClose') : $('moreBtn')).focus({ preventScroll: true }); } catch (e) { /* optional */ }
+}
+$('moreBtn').addEventListener('click', () => setDrawer(!drawerOpen));
+$('drawerClose').addEventListener('click', () => setDrawer(false));
+$('scrim').addEventListener('click', () => setDrawer(false));
+renderMore();
+
+/* ---------- style ---------- */
+$('styleSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b && b.dataset.style !== STYLE) setStyle(b.dataset.style); });
+renderStyle();
+
+/* ---------- character ---------- */
+function renderChar() {
+  const v = Math.round(CHAR * 100), el = $('r-char');
+  el.value = v; el.style.setProperty('--p', ((v + 100) / 2) + '%');
+  $('v-char').textContent = v === 0 ? '0' : (v > 0 ? '+' : '−') + Math.abs(v);
+}
+$('r-char').addEventListener('input', e => {
+  CHAR = parseInt(e.target.value, 10) / 100; renderChar();
+  if (RP) replayStep(); else refresh();
+  try { localStorage.setItem('wd-char', String(Math.round(CHAR * 100))); } catch (err) { /* optional */ }
+});
+$('r-char').addEventListener('dblclick', () => { CHAR = 0; renderChar(); if (RP) replayStep(); else refresh(); try { localStorage.setItem('wd-char', '0'); } catch (err) { /* optional */ } });
+renderChar();
+
+/* ---------- volume ---------- */
+function renderVol() {
+  const el = $('r-vol'); el.value = vol;
+  el.style.setProperty('--p', vol + '%');
+  $('v-vol').textContent = vol + ' %';
+}
+$('r-vol').addEventListener('input', e => {
+  vol = parseInt(e.target.value, 10); renderVol();
+  if (S) S.vol.gain.setTargetAtTime(volGain(), S.ctx.currentTime, 0.05);
+  try { localStorage.setItem('wd-vol', String(vol)); } catch (err) { /* optional */ }
+});
+try { const v = parseInt(localStorage.getItem('wd-vol'), 10); if (v >= 0 && v <= 100) vol = v; } catch (e) { /* optional */ }
+renderVol();
+
+/* ---------- sleep timer (fade scheduled on the audio clock, survives throttling) ---------- */
+function armSleep(fresh) {
+  sleepEnd = (S && sleepMin) ? Date.now() + sleepMin * 60000 : null;
+  if (S) {
+    const g = S.master.gain, now = S.ctx.currentTime;
+    if (!fresh) { g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.setTargetAtTime(0.6, now, 0.3); }
+    if (sleepEnd) g.setTargetAtTime(0, now + Math.max(0, sleepMin * 60 - 25), 7);
+  }
+  renderSleep();
+}
+function renderSleep() {
+  document.querySelectorAll('#sleepSeg button').forEach(b => b.setAttribute('aria-pressed', String(parseInt(b.dataset.min, 10) === sleepMin)));
+  let txt = '';
+  if (sleepEnd) { const r = Math.max(0, Math.ceil((sleepEnd - Date.now()) / 1000)); txt = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0'); }
+  else if (sleepMin) txt = sleepMin + ':00';
+  $('sleepRead').textContent = txt;
+}
+function finishSleep() { sleepMin = 0; sleepEnd = null; stopAudio(); renderState(); setNote('sleepEnded'); }
+$('sleepSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  sleepMin = parseInt(b.dataset.min, 10); armSleep(false);
+});
+setInterval(() => { if (sleepEnd) { if (Date.now() >= sleepEnd) finishSleep(); else renderSleep(); } }, 1000);
+
+/* ---------- keep playing with the screen off / lock screen ---------- */
+function silentWav() {
+  const sr = 8000, n = sr, b = new Uint8Array(44 + n * 2), dv = new DataView(b.buffer);
+  const w = (o, str) => { for (let i = 0; i < str.length; i++) b[o + i] = str.charCodeAt(i); };
+  w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  w(36, 'data'); dv.setUint32(40, n * 2, true);
+  let str = ''; for (let i = 0; i < b.length; i++) str += String.fromCharCode(b[i]);
+  return 'data:audio/wav;base64,' + btoa(str);
+}
+function keepAlive(on) {
+  try {
+    if (!silentEl) { silentEl = new Audio(); silentEl.src = silentWav(); silentEl.loop = true; silentEl.setAttribute('playsinline', ''); }
+    if (on) { const pr = silentEl.play(); if (pr && pr.catch) pr.catch(() => {}); } else silentEl.pause();
+  } catch (e) { /* optional */ }
+}
+function setupMedia() {
+  try {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({ title: 'Weather Drone', artist: placeName(), album: 'Atmosphere OS' });
+    navigator.mediaSession.setActionHandler('play', () => { if (!S) { startAudio(); renderState(); } });
+    navigator.mediaSession.setActionHandler('pause', () => { if (S) { stopAudio(); renderState(); } });
+  } catch (e) { /* optional */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (S && S.ctx.state !== 'running') S.ctx.resume().catch(() => {});
+  if (S || ambOn) requestWake();
+});
+
+/* ---------- ambient / fullscreen mode ---------- */
+const amb = $('ambient');
+let ambOn = false, ambNative = false, idleT = null;
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+function ambWake() {
+  if (!ambOn) return;
+  amb.classList.remove('idle'); clearTimeout(idleT);
+  idleT = setTimeout(() => amb.classList.add('idle'), 3000);
+}
+function openAmbient() {
+  if (ambOn) return;
+  ambOn = true;
+  amb.classList.add('on'); amb.setAttribute('aria-hidden', 'false');
+  document.documentElement.classList.add('amb-lock');
+  const el = document.documentElement, rq = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (rq && !fsEl()) {
+    try { const p = rq.call(el); ambNative = true; if (p && p.catch) p.catch(() => { ambNative = false; }); }
+    catch (e) { ambNative = false; }   // iPhone Safari: no element fullscreen, the overlay alone is the ambient mode
+  }
+  requestWake(); ambWake();
+  try { $('ambExit').focus({ preventScroll: true }); } catch (e) { /* optional */ }
+}
+function closeAmbient() {
+  if (!ambOn) return;
+  ambOn = false; clearTimeout(idleT);
+  amb.classList.remove('on', 'idle'); amb.setAttribute('aria-hidden', 'true');
+  document.documentElement.classList.remove('amb-lock');
+  if (fsEl()) {
+    const ex = document.exitFullscreen || document.webkitExitFullscreen;
+    try { const p = ex.call(document); if (p && p.catch) p.catch(() => {}); } catch (e) { /* optional */ }
+  }
+  ambNative = false;
+  if (!S) releaseWake();
+  try { $('ambBtn').focus({ preventScroll: true }); } catch (e) { /* optional */ }
+}
+const toggleAmbient = () => { if (ambOn) closeAmbient(); else openAmbient(); };
+function onFsChange() { if (!fsEl() && ambOn && ambNative) closeAmbient(); }
+document.addEventListener('fullscreenchange', onFsChange);
+document.addEventListener('webkitfullscreenchange', onFsChange);
+$('ambBtn').addEventListener('click', openAmbient);
+$('ambExit').addEventListener('click', closeAmbient);
+$('ambPlay').addEventListener('click', () => { togglePlay(); ambWake(); });
+['pointermove', 'pointerdown', 'touchstart'].forEach(ev => amb.addEventListener(ev, ambWake, { passive: true }));
+
+/* ---------- hotkeys: Space play/pause, M live/manual, F ambient, Esc exit (layout-independent via e.code) ---------- */
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tg = e.target, tag = tg && tg.tagName;
+  if (tag === 'SELECT' || tag === 'TEXTAREA' || (tag === 'INPUT' && tg.type !== 'range') || (tg && tg.isContentEditable)) return;
+  closeSplash();
+  const code = e.code, k = (e.key || '').toLowerCase();
+  if (code === 'Space' || k === ' ') {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (tag === 'BUTTON') tg.blur();   // stop the focused button from also firing a click on keyup
+    togglePlay(); ambWake();
+  } else if (code === 'KeyM' || k === 'm') {
+    if (e.repeat) return;
+    e.preventDefault(); toggleSource(); ambWake();
+  } else if (code === 'KeyF' || k === 'f') {
+    if (e.repeat) return;
+    e.preventDefault(); toggleAmbient();
+  } else if (code === 'KeyD' || k === 'd') {
+    if (e.repeat) return;
+    e.preventDefault(); toggleReplay(); ambWake();
+  } else if (code === 'Escape' && ambOn) {
+    closeAmbient();
+  } else if (code === 'Escape' && drawerOpen) {
+    setDrawer(false);
+  } else if (code === 'KeyS' || k === 's') {
+    if (e.repeat) return;
+    e.preventDefault(); setDrawer(!drawerOpen);
+  } else ambWake();
+});
+
+/* ---------- clock, language, splash ---------- */
+function clock() {
+  if (RP) return;
+  const d = new Date(), s = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  $('clock').textContent = s; $('ambClock').textContent = s;
+}
+clock(); setInterval(clock, 15000);
+
+function setLang(code) {
+  lang = STR[code] ? code : 'en';
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+  $('lang').value = lang;
+  $('ambExit').textContent = t('exitAmbient');
+  amb.setAttribute('aria-label', t('ambient'));
+  $('kbdHint').innerHTML = '<kbd>' + t('keySpace') + '</kbd> ' + t('keysPlay') + ' · <kbd>M</kbd> ' + t('keysMode') + ' · <kbd>F</kbd> ' + t('keysFull') + ' · <kbd>D</kbd> ' + t('keysDay') + ' · <kbd>S</kbd> ' + t('settings').toLowerCase();
+  $('ambHint').innerHTML = '<kbd>' + t('keySpace') + '</kbd> ' + t('keysPlay') + ' · <kbd>F</kbd> / <kbd>Esc</kbd> ' + t('exitAmbient');
+  try { localStorage.setItem('wd-lang', lang); } catch (e) { /* optional */ }
+  setNote(noteKey); refresh(); renderState(); setupMedia();
+  renderReplay(rpProgress()); renderMore();
+  if (W.live) nameLocation();
+}
+$('lang').addEventListener('change', e => setLang(e.target.value));
+(function initLang() {
+  let c = null;
+  try { c = localStorage.getItem('wd-lang'); } catch (e) { /* optional */ }
+  if (!c || !STR[c]) c = String(navigator.language || 'en').slice(0, 2).toLowerCase();
+  setNote('startNote'); setLang(c);
+})();
+
+const splash = $('splash');
+function closeSplash() {
+  if (!splash || !splash.isConnected || splash.classList.contains('gone')) return;
+  splash.classList.add('gone'); setTimeout(() => splash.remove(), 450);
+}
+if (splash) {
+  splash.addEventListener('click', closeSplash);
+  setTimeout(() => { if (splash.isConnected) splash.remove(); }, reduceMotion ? 2200 : 4300);
+}
+
+requestAnimationFrame(frame);
+requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('no-tr')));
+})();
+</script>
+</body>
+</html>
