@@ -1,11 +1,11 @@
-# Weather Drone · Atmosphere OS
+# Weather Drone
 
 **Weather becomes sound.** A generative ambient drone driven by the live weather where you are.
 Wind, rain, pressure, humidity, temperature and the position of the sun shape both the music and the sky on screen.
 
-**▶ Listen:** [https://SHOOGAZE.github.io/weather-drone/](https://SHOOGAZE.github.io/weather-drone/)
+**▶ Listen:** https://shoogaze.github.io/weather-drone/
 
-![Weather Drone at dusk](prev.png)
+![Weather Drone at dusk](preview.png)
 
 One HTML file. No sign-up, no API keys, no tracking, no build step.
 
@@ -68,7 +68,7 @@ python3 -m http.server 8000
 
 1. Push `index.html`, `preview.png`, `README.md` and `LICENSE` to a repository.
 2. Go to **Settings → Pages → Deploy from a branch → `main` / root**.
-3. In `index.html`, replace `og:image` with the absolute URL, e.g. `https://YOUR-NAME.github.io/weather-drone/preview.png`. This makes link previews show the image.
+3. If you fork it, change `og:url` and `og:image` in `index.html` to your own address, so link previews show the image.
 
 ## Credits
 
