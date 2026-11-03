@@ -1,89 +1,40 @@
-# Weather Drone
+# Producer Companion
 
-**Weather becomes sound.** A generative ambient drone driven by the live weather where you are.
-Wind, rain, pressure, humidity, temperature and the position of the sun shape both the music and the sky on screen.
+A single-file mobile web app for electronic music producers, styled after Braun notebooks and vintage measuring instruments: monochrome, one orange lamp, IBM Plex type, a radio-dial boot screen.
 
-**▶ Listen:** https://shoogaze.github.io/weather-drone/
+<!-- Demo: in the GitHub editor, drag extras/demo.mp4 here; it is uploaded and plays inline. -->
 
-![Weather Drone at dusk](preview.png)
+- **Vibe**: genre, tempo, emotions and aesthetic → track concept with structure, instruments and mixing parameters
+- **Names**: stage aliases and tracklists in eight styles (Clean, Factory, Ether, Bureau, Cosmos, Tape, Kaomoji, Glyphs) and seven languages (RU, EN, ES, DE, FR, JA, ZH, or mixed), thousands of word combinations
+- **Concept**: conceptual / industrial album ideas
+- **Locks**: pin the harmony, the instruments or the title in a Vibe result and regenerate the rest
+- **Saved**: keep any result on the device (bookmark button in the header), copy or delete it later
+- **Installable**: add to the Home Screen and it works offline (PWA)
 
-One HTML file. No sign-up, no API keys, no tracking, no build step.
+28 genres · interface in RU / EN / ES / DE / FR / JA · light, grey and dark skins · radio-dial boot screen with Web Audio sounds · phone, tablet and desktop layouts.
 
-## What you hear
+Keys: `1`–`3` switch modules, `G` generate, `M` toggle sound.
 
-| Weather | Sound |
-|---|---|
-| Temperature | register of the whole drone |
-| Time of day | the scale: bright major by day, calm Egyptian pentatonic at night |
-| Wind (Beaufort scale) | gusting wind noise, an Aeolian harp that sings on the gusts, how far the filter wanders |
-| Rain | soft hiss and tiny drops; snow mutes them into a hush |
-| Storm (Bft 8+) | distant thunder |
-| Humidity | size of the reverb and width of the chorus |
-| Pressure | how slowly the drone breathes, weight of the sub-octave |
-| Cloud cover | how open the filter is, how many notes the motifs play |
+## Screenshots
 
-The sky behind the interface follows the real sun: night with stars, dawn, a cream-coloured day, a golden evening, dusk. Clouds, rain, snow, wind, fog, heat haze and frost are drawn from the same weather data.
+| Boot | Vibe | Mix | Names |
+|---|---|---|---|
+| ![](screenshots/01-boot.png) | ![](screenshots/02-vibe-result.png) | ![](screenshots/03-vibe-mix.png) | ![](screenshots/04-names.png) |
 
-## Five styles
+| Concept | Dark skin | Locks |
+|---|---|---|
+| ![](screenshots/05-concept.png) | ![](screenshots/06-dark-dubstep.png) | ![](screenshots/07-vibe-locks.png) |
 
-- **Aeolian:** a free-floating triangle-wave drone with slow glides.
-- **Tape:** a looping four-chord progression, a music-box motif, wow & flutter, saturation and tape echo.
-- **Airport:** seven piano and voice loops of different lengths, so their combinations never repeat.
-- **Pearl:** sparse piano chords in a long, pedalled haze.
-- **Loops:** a short phrase that slowly wears out, loop after loop, until a new one is born.
+**Desktop**
 
-These are homages to classic ambient techniques. They are not affiliated with any artist.
+![](screenshots/08-desktop-vibe.png)
 
-## Features
+## Run
 
-- **Live mode:** uses your location and the Open-Meteo forecast, refreshed every 10 minutes.
-- **Manual mode:** a sample city (Brno) with sliders for every parameter.
-- **Day replay:** the last 24 hours played back in 5, 10 or 20 minutes. Sound and sky go from night to dawn to day to dusk.
-- **Ambient mode:** a full-screen screensaver with only the waves, the city and the playback state.
-- **Other settings:**
-  - sleep timer;
-  - "Character" macro (darker ↔ brighter);
-  - animation level (Full / Calm / Off);
-  - 11 languages.
-- **Hotkeys:** `Space` play/stop · `M` live/manual · `F` ambient · `D` day replay · `S` settings.
+Open `index.html` in a browser. No build step. For GitHub Pages: Settings → Pages → deploy from branch `main`, root.
 
-## Privacy
-
-Your coordinates are sent only to two services:
-- [Open-Meteo](https://open-meteo.com/) for the weather;
-- [BigDataCloud](https://www.bigdatacloud.com/) for the city name.
-
-Sound is synthesised in your browser with the Web Audio API and is never recorded. Only your volume, language and display preferences are stored, in your own browser.
-
-## Run it locally
-
-Just open `index.html`. For live mode the browser needs a secure origin, so serve it locally:
-
-```bash
-python3 -m http.server 8000
-# then open http://localhost:8000
-```
-
-## Deploy on GitHub Pages
-
-1. Push `index.html`, `preview.png`, `README.md` and `LICENSE` to a repository.
-2. Go to **Settings → Pages → Deploy from a branch → `main` / root**.
-3. If you fork it, change `og:url` and `og:image` in `index.html` to your own address, so link previews show the image.
-
-## Credits
-
-- Weather data by [Open-Meteo](https://open-meteo.com/) (CC BY 4.0).
-- Reverse geocoding by [BigDataCloud](https://www.bigdatacloud.com/).
-- Typeface: IBM Plex Sans & Mono.
+**Install on iPhone:** open the site in Safari → Share → Add to Home Screen. It then runs full-screen and offline. Keep `manifest.webmanifest`, `sw.js` and the `icons/` folder next to `index.html`.
 
 ## License
 
-MIT © 2026 Kirill Kinderhart
-
----
-
-### По-русски
-
-Генеративный эмбиент-дрон, которым управляет реальная погода. Ветер, дождь, давление, влажность, температура и положение солнца меняют и звук, и небо на экране.
-
-Это один HTML-файл без регистрации и ключей. Есть пять стилей, «Память дня» (сутки за 5–20 минут), эмбиент-режим и 11 языков.
+[MIT](LICENSE) © 2026 Kirill Kinderhart
