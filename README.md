@@ -1,39 +1,36 @@
-# Producer Companion
+# Weather Drone
 
-A single-file mobile web app for electronic music producers, styled after Braun notebooks and vintage measuring instruments: monochrome, one orange lamp, IBM Plex type, a radio-dial boot screen.
+A generative ambient instrument for the browser, played by the live weather where you are. Wind, rain, pressure and temperature shape the sound; the sky on screen follows the real sun and shows the same weather.
 
-<!-- Demo: in the GitHub editor, drag extras/demo.mp4 here; it is uploaded and plays inline. -->
+**▶ Listen:** https://shoogaze.github.io/weather-drone/
 
-- **Vibe**: genre, tempo, emotions and aesthetic → track concept with structure, instruments and mixing parameters
-- **Names**: stage aliases and tracklists in eight styles (Clean, Factory, Ether, Bureau, Cosmos, Tape, Kaomoji, Glyphs) and seven languages (RU, EN, ES, DE, FR, JA, ZH, or mixed), thousands of word combinations
-- **Concept**: conceptual / industrial album ideas
-- **Locks**: pin the harmony, the instruments or the title in a Vibe result and regenerate the rest
-- **Saved**: keep any result on the device (bookmark button in the header), copy or delete it later
-- **Installable**: add to the Home Screen and it works offline (PWA)
+- **Live**: your location and the Open-Meteo forecast, refreshed every 10 minutes
+- **Manual**: sliders for temperature, wind, rain, cloud cover, humidity, pressure and time of day
+- **Styles**: five ways to play the weather (Aeolian drone, Tape loops, Airport phase loops, Pearl piano, decaying Loops)
+- **Sky**: night, dawn, day and dusk; clouds, drops on the glass, snow, frost, fog, heat haze, gusts and storms
+- **Replay day**: the last 24 hours in 5, 10 or 20 minutes, sound and sky together
+- **Ambient**: a full-screen screensaver with only the waves, the city and the sound
+- **Installable**: add it to the Home Screen; it starts offline and keeps playing in manual mode
 
-28 genres · interface in RU / EN / ES / DE / FR / JA · light, grey and dark skins · radio-dial boot screen with Web Audio sounds · phone, tablet and desktop layouts.
+Sleep timer · Character macro · animation level (full / calm / off) · 11 languages · phone, tablet and desktop layouts.
 
-Keys: `1`–`3` switch modules, `G` generate, `M` toggle sound.
+Keys: `Space` play / stop, `M` live / manual, `F` ambient, `D` replay day, `S` settings.
 
 ## Screenshots
 
-| Boot | Vibe | Mix | Names |
-|---|---|---|---|
-| ![](screenshots/01-boot.png) | ![](screenshots/02-vibe-result.png) | ![](screenshots/03-vibe-mix.png) | ![](screenshots/04-names.png) |
+| Dusk | Night | Rain | Frost |
+|:---:|:---:|:---:|:---:|
+| <img src="screenshots/01-dusk.png" width="200" alt="Dusk, Tape style"> | <img src="screenshots/02-night.png" width="200" alt="Night with stars, Airport style"> | <img src="screenshots/03-rain.png" width="200" alt="Drops on the glass, Pearl style"> | <img src="screenshots/04-frost.png" width="200" alt="Frost at the edges, Aeolian style"> |
 
-| Concept | Dark skin | Locks |
-|---|---|---|
-| ![](screenshots/05-concept.png) | ![](screenshots/06-dark-dubstep.png) | ![](screenshots/07-vibe-locks.png) |
-
-**Desktop**
-
-![](screenshots/08-desktop-vibe.png)
+<img src="screenshots/05-desktop.png" alt="Desktop layout on a clear day">
 
 ## Run
 
-Open `index.html` in a browser. No build step. For GitHub Pages: Settings → Pages → deploy from branch `main`, root.
+Open `index.html` in a browser. No build step, no dependencies. For GitHub Pages: Settings → Pages → deploy from branch `main`, root.
 
-**Install on iPhone:** open the site in Safari → Share → Add to Home Screen. It then runs full-screen and offline. Keep `manifest.webmanifest`, `sw.js` and the `icons/` folder next to `index.html`.
+**Install on iPhone:** open the site in Safari → Share → Add to Home Screen. Keep `css/`, `js/`, `icons/`, `manifest.webmanifest` and `sw.js` next to `index.html`.
+
+Live mode needs HTTPS and location access. Coordinates go only to [Open-Meteo](https://open-meteo.com/) (weather, CC BY 4.0) and [BigDataCloud](https://www.bigdatacloud.com/) (city name). Sound is synthesised in the browser and never recorded.
 
 ## License
 

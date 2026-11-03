@@ -1,16 +1,19 @@
 {
-  "name": "Producer Companion",
-  "short_name": "PC",
-  "description": "Track concepts, aliases and album ideas for electronic music",
+  "id": "./",
+  "name": "Weather Drone",
+  "short_name": "Weather Drone",
+  "description": "A generative ambient drone played by the live weather where you are.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0D0E0D",
-  "theme_color": "#0D0E0D",
+  "background_color": "#0f1315",
+  "theme_color": "#0f1315",
+  "categories": ["music", "weather", "entertainment"],
   "icons": [
-    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }
